@@ -13,3 +13,5 @@ data Literal = NONE | STR String | ID String | NUM Float | FALSE_LIT | TRUE_LIT 
 -- Datatype Token
 -- Represents the tokens the scanner produces and which are used as input for the parser
 data Token = TOKEN TokenType String Literal Int deriving (Show)
+-- To create token: example TOKEN LEFT_PAREN theStringAKA('(') NONE(literal and
+-- it's non for '(') theLineThatItHappendOn
