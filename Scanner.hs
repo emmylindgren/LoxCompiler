@@ -39,11 +39,15 @@ runTokens (x:xs) line = case x of
     '\r'-> noToken
     '\t'-> noToken 
     '\n'-> runTokens xs (line + 1)
-    -- Bryta ut strängskapandet kanske? Känns också som en ganska ful lösning? Snyggare? 
-    -- KOLLA GENOM DETTA ORDENTLIGT! 
-    '"'-> TOKEN STRING "" (STR (fst stringAndRest)) line : runTokens (snd stringAndRest) line
-        where stringAndRest = string xs line
+    '"'-> let (subString,restString,lineCount) = string xs line
+          in 
+            TOKEN STRING "" (STR subString) line : runTokens restString lineCount
     -- next one is: isDigit :) look at the java file. Default case? 
+    x 
+        | isDigit x -> let (num,restString) = number (x:xs)
+                in
+                TOKEN NUMBER "" (NUM (read num :: Float)) line : runTokens restString line
+        | otherwise -> TOKEN NUMBER "" (NUM 3) line : runTokens xs line
     _  -> error "fel"
     where 
         addSingleToken x = addToken x line xs
@@ -63,17 +67,33 @@ comment (x:xs) line = if x == '\n'
     then runTokens xs (line + 1)
     else comment xs line
 
--- Problem? Inte så snyggt? Kanske bryta upp det i två funktioner annars?
-string:: [Char] -> Int -> ([Char],[Char])
+-- Function for collecting strings out of a [Char].
+-- Returns: the substring, the rest of the [Char] to be examined, and the linecount.
+string:: [Char] -> Int -> ([Char],[Char],Int)
 string [] line = error ("Unterminated string, at line: "++ show line)
-string (x:xs) line = if x == '"'
-    then ([],xs)
-    else (x : fst stringAndRest, snd stringAndRest)
-    where stringAndRest = string xs line
+string (x:xs) line = case x of 
+    '"' -> ([],xs,line)
+    '\n' -> advance (line+1)
+    _ -> advance line
+    where 
+        advance line = 
+            let (subString,rest,lineCount) = string xs line
+                in (x:subString,rest,lineCount) 
 
--- Eller så: 
--- så länge vi ej stöter på " så returnerar vi den strängen + nästa omgång m xs.
--- 
+-- head returnerar ej tom lista ifall det inte finns nåt! TA hand om de 
+number :: [Char] -> ([Char],[Char])
+number (x:xs) = case x of 
+    '.' -> if isDigit (head xs)
+        then let decimals = takeWhile isDigit xs
+            in (x : decimals, drop (length decimals) xs)
+        else ([],x:xs)
+    x 
+        | isDigit x -> let (num, rest) = number xs
+                in (x:num,rest)
+        | otherwise -> ([],x:xs)
+        -- ska denna va samma som den första? 
+-- number. Stöter på en siffra. Forsätt leta tills att vi når mellanslag \n eller 
+-- . + och inget efter. då gör siffra av de och fortsätt 
 
 addToken :: TokenType -> Int -> [Char] -> [Token]
 addToken t line rest = TOKEN t "" NONE line : runTokens rest line 
