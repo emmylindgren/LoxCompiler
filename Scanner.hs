@@ -47,19 +47,22 @@ runTokens (x:xs) line = case x of
         | isDigit x -> let (num,restString) = number (x:xs)
                 in
                 TOKEN NUMBER "" (NUM (read num :: Float)) line : runTokens restString line
-        | otherwise -> TOKEN NUMBER "" (NUM 3) line : runTokens xs line
-    _  -> error "fel"
+        | otherwise -> error "fel"
     where 
         addSingleToken x = addToken x line xs
         addDoubleToken x = addToken x line (tail xs)
         noToken = runTokens xs line
 
+addToken :: TokenType -> Int -> [Char] -> [Token]
+addToken t line rest = TOKEN t "" NONE line : runTokens rest line 
 
 nextMatches:: Char -> [Char] -> Bool
 nextMatches c [] = False
 nextMatches c (x:xs) = c == x
 
--- Comments are not added to tokens, it's not meaningfull for 
+-- Function for advancing a [Char] until reaching the end of a comment. 
+-- Calls runTokens with the rest of [Char] when done.
+-- Comments are not added to tokens as it is not meaningfull for 
 -- the parser later on. 
 comment:: [Char] -> Int -> [Token]
 comment [] line = runTokens [] line
@@ -68,7 +71,8 @@ comment (x:xs) line = if x == '\n'
     else comment xs line
 
 -- Function for collecting strings out of a [Char].
--- Returns: the substring, the rest of the [Char] to be examined, and the linecount.
+-- Returns: triple containing the substring, 
+-- the rest of the [Char] to be examined, and the linecount.
 string:: [Char] -> Int -> ([Char],[Char],Int)
 string [] line = error ("Unterminated string, at line: "++ show line)
 string (x:xs) line = case x of 
@@ -80,28 +84,19 @@ string (x:xs) line = case x of
             let (subString,rest,lineCount) = string xs line
                 in (x:subString,rest,lineCount) 
 
--- head returnerar ej tom lista ifall det inte finns nåt! TA hand om de 
+-- Function for collecting a Float out of a [Char].
+-- Returns: pair containing substring with the Float, 
+-- and the rest of the [Char] to be examined.
 number :: [Char] -> ([Char],[Char])
+number [] = ([],[])
 number (x:xs) = case x of 
-    '.' -> if isDigit (head xs)
-        then let decimals = takeWhile isDigit xs
-            in (x : decimals, drop (length decimals) xs)
-        else ([],x:xs)
+    '.' -> case xs of 
+        [] -> ([],x:xs)
+        xs -> if isDigit (head xs)
+                then let decimals = takeWhile isDigit xs
+                    in (x : decimals, drop (length decimals) xs)
+                else ([],x:xs)
     x 
         | isDigit x -> let (num, rest) = number xs
                 in (x:num,rest)
         | otherwise -> ([],x:xs)
-        -- ska denna va samma som den första? 
--- number. Stöter på en siffra. Forsätt leta tills att vi når mellanslag \n eller 
--- . + och inget efter. då gör siffra av de och fortsätt 
-
-addToken :: TokenType -> Int -> [Char] -> [Token]
-addToken t line rest = TOKEN t "" NONE line : runTokens rest line 
-
---TOKEN tokentype [x] NONE line
--- 1: Gå genom character för char och utvärdera...
--- ska jag använda fold?
--- Eller kalla på scantokens tills vi har en tom lista..
--- känns ju faktiskt najs tror jag? Gör ett token om de går
--- sen skicka vidare till sig själv. 
--- kan väl dock va snabbare med fold i guess :) 
