@@ -18,7 +18,7 @@ scanTokens x = runTokens x 1
     and one of type 'Int' (the current line in the string). 
 -}
 runTokens :: [Char] -> Int -> [Token]
-runTokens [] _ = []
+runTokens [] line = [TOKEN EOF "" NONE line]
 runTokens (x:xs) line = case x of 
     '(' -> addSingleToken LEFT_PAREN
     ')' -> addSingleToken RIGHT_PAREN
