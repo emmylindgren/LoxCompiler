@@ -3,10 +3,20 @@ import Data.Maybe
 import Data.Char
 import Tokens
 
---Main function.
+{-|
+    Main function. Takes a string with Lox-language and converts it 
+    to tokens of the Lox-language. 
+    It takes one argument, of type [Char].
+-}
 scanTokens :: [Char] -> [Token]
 scanTokens x = runTokens x 1
 
+{-|
+    Converts string of Lox-language to list of tokens 
+    of the Lox-language.
+    It takes two arguments, one of type [Char] (the string)
+    and one of type 'Int' (the current line in the string). 
+-}
 runTokens :: [Char] -> Int -> [Token]
 runTokens [] _ = []
 runTokens (x:xs) line = case x of 
@@ -56,24 +66,27 @@ nextMatches:: Char -> [Char] -> Bool
 nextMatches c [] = False
 nextMatches c (x:xs) = c == x
 
--- Function for advancing a [Char] until reaching the end of a comment. 
--- Calls runTokens with the rest of [Char] when done.
--- Comments are not added to tokens as it is not meaningfull for 
--- the parser later on. 
+{-|
+    Function for advancing a [Char] until reaching the end of a comment. 
+    Calls runTokens with the rest of [Char] when done.
+    Comments are not added to tokens as it is not meaningfull for 
+    the parser later on. 
+-}
 comment:: [Char] -> Int -> [Token]
 comment [] line = runTokens [] line
 comment (x:xs) line = if x == '\n'
     then runTokens xs (line + 1)
     else comment xs line
 
-
--- Function for collecting a string Token from [Char].
--- Returns a list of Tokens following the string token, 
--- with the string token appended at the head.
+{-|
+    Function for collecting a string Token from [Char].
+    Returns a list of Tokens following the string token, 
+    with the string token appended at the head.
+-}
 string :: [Char] -> Int -> [Token]
 string list line = 
     let (subString,rest,newLine) = getString list line
-        in TOKEN STRING "" (STR subString) line : runTokens rest newLine
+        in TOKEN STRING "" (STR subString) newLine : runTokens rest newLine
     where 
         getString:: [Char] -> Int -> ([Char],[Char],Int)
         getString [] line = error ("Unterminated string, at line: "++ show line)
@@ -86,32 +99,38 @@ string list line =
                     let (subString,rest,lineCount) = getString xs line
                         in (x:subString,rest,lineCount) 
 
--- Function for collecting a Float Token out of a [Char].
--- Returns a list of Tokens following the float token, 
--- with the float token appended at the head.
+{-|
+    Function for collecting a Float Token out of a [Char].
+    Returns a list of Tokens following the float token, 
+    with the float token appended at the head.
+-}
 number :: [Char] -> Int -> [Token]
-number list line = 
-    let (numString,restString) = getNumber list
+number string line = 
+    let (numString,restString) = getNumber string
         in TOKEN NUMBER "" (NUM (read numString :: Float)) line : runTokens restString line
-        where
-            getNumber :: [Char] -> ([Char],[Char])
-            getNumber [] = ([],[])
-            getNumber (x:xs) = case x of 
-                '.' -> case xs of 
-                    [] -> ([],x:xs)
-                    xs -> if isDigit (head xs)
-                            then let decimals = takeWhile isDigit xs
-                                in (x : decimals, drop (length decimals) xs)
-                            else ([],x:xs)
-                x 
-                    | isDigit x -> let (num, rest) = getNumber xs
-                            in (x:num,rest)
-                    | otherwise -> ([],x:xs)
+    where
+        getNumber :: [Char] -> ([Char],[Char])
+        getNumber [] = ([],[])
+        getNumber (x:xs) = case x of 
+            '.' -> case xs of 
+                [] -> ([],x:xs)
+                xs -> if isDigit (head xs)
+                        then let decimals = takeWhile isDigit xs
+                            in (x : decimals, drop (length decimals) xs)
+                        else ([],x:xs)
+            x 
+                | isDigit x -> let (num, rest) = getNumber xs
+                        in (x:num,rest)
+                | otherwise -> ([],x:xs)
 
-
+{-|
+    Function for collecting a Identifier or Keyword from a [Char].
+    Returns a list of Tokens following the identifier or keyword token, 
+    with the identifier/keyword token appended at the head.
+-}
 identifier :: [Char] -> Int -> [Token]
-identifier list line = 
-    let (name,rest) = getName list
+identifier string line = 
+    let (name,rest) = getName string
         in case getKeyWord name of 
             IDENTIFIER -> TOKEN IDENTIFIER "" (ID name) line : runTokens rest line
             FALSE -> TOKEN FALSE "" FALSE_LIT line : runTokens rest line
