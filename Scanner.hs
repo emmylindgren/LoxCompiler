@@ -4,6 +4,12 @@ import Data.Char
 import Tokens
 
 {-|
+    Author: Emmy Lindgren
+    id19eln
+    Date: 2023-02-07
+-}
+
+{-|
     Main function. Takes a string with Lox-language and converts it 
     to tokens of the Lox-language. 
     It takes one argument, of type [Char].
