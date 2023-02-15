@@ -1,17 +1,34 @@
 module Parser (parse) where
 
 import Tokens
+-- Detta nedan måste ändras. Tittar mer på de senare! 
+data Tree = Expression 
+  deriving Show
 
+--Literal ska ju kunna va en sträng eller ett nummer I guess, kan använda de literals
+-- som redan är definierade? 
+data Expression = Literal 
+                | Unary {operator::Token,right::Expression}
+                | Binary {left::Expression, operator::Token,right::Expression}
+                | Grouping Expression 
+  deriving (Show)
+{- Nedan från kap 6 iaf, de är funktionerna som kommer behövas.
+ De ska också returnera ett träd samt resterande del av tokenlistan.
+ Just nu är trädet expression från dessa! 
+ Tror det kommer vara så mEEN sen kmr expr komma från statement osv
+ Då kommer alla måsta utgå från samma typ? Vet inte riktigt ännu.
+expression :: [Token] -> (Expression, [Token])
+equality :: [Token] -> (Expression, [Token])
+comparison :: [Token] -> (Expression, [Token])
+term       :: [Token] -> (Expression, [Token])
+factor     :: [Token] -> (Expression, [Token])
+unary :: [Token] -> (Expression, [Token])
+primary :: [Token] -> (Expression, [Token])
 
-{- Nedan från expressions.hs, förslag på datatypen
-data Expr = Num Int
-           | Add Expr Expr
-           | Sub Expr Expr
-           | Mult Expr Expr
-           deriving (Show)
+Sen kommer vi ha några som returnerar statements? 
+Så kmr trädet = statement | Expression?? 
 
---OBS! ALLA datatyper måste definieras om. Nu bara kladd. 
-
+Exempelträd från annan grammatik:
 data Tree = SumNode Operator Tree Tree
           | ProdNode Operator Tree Tree
           | AssignNode String Tree
@@ -20,68 +37,47 @@ data Tree = SumNode Operator Tree Tree
           | VarNode String
   deriving Show
 -}
-data Tree = Expression
-  deriving Show
-
---Literal ska ju kunna va en sträng eller ett nummer I guess 
-data Expression = Literal 
-                | Unary Token Expression
-                | Binary Expression Token Expression
-                | Grouping Expression 
-  deriving Show
-
-
-{- Nedan från kap 6 iaf, de är funktionerna som kommer behövas.
- De ska också returnera ett träd samt resterande del av tokenlistan. 
-expression :: [Token] -> (Tree, [Token])
-equality :: [Token] -> (Tree, [Token])
-comparison :: [Token] -> (Tree, [Token])
-term       :: [Token] -> (Tree, [Token])
-factor     :: [Token] -> (Tree, [Token])
-unary :: [Token] -> (Tree, [Token])
-primary :: [Token] -> (Tree, [Token])
--}
-
-data A = Num Int
-           | Add A A
-           | Sub A A
-           | Mult A A
-           deriving (Show)
-data Expr
-  = IntLit    Int               -- integer constants, leaves of the expression trees
-  | BinaryApp BinOp   Expr Expr
-  | UnaryApp  UnaryOp Expr
-
-data BinOp
-  = MultOp
-  | AddOp
-  | DivOp
-  | SubOp
-
-data UnaryOp
-  = NegOp
-  | AbsOp
-
---Påbörjat försökt till parsning enligt boken.
-{-
-parse :: [Token] -> A
-parse x = Num 3 -}
-parse :: [Token] -> A
+--Detta lär returnera ett träd sedan som är byggt av expressions osv 
+-- but for now, expression:) 
+parse :: [Token] -> Expression
 parse x = let (tree,rest) = expression x 
         in 
           if null rest 
             then tree
-            else error "Unexpected leftover tokens" --jobba ut denna mer? ska de bli fel här?  
+            else error "Unexpected leftover tokens" --jobba ut denna mer? ska de bli fel här ens?  
 
 
-expression :: [Token] -> (A,[Token])
+expression :: [Token] -> (Expression,[Token])
 expression = equality  
 
 -- The rule equality       → comparison ( ( "!=" | "==" ) comparison )* ; 
-equality :: [Token] -> (A,[Token])
+equality :: [Token] -> (Expression,[Token])
 equality x =  let (expr,rest)= comparison x 
-        in case rest of 
-            (x:xs) -> if x.TokenType == BANG_EQUAL || EQUAL_EQUAL
-                        then (BinOp expr x (comparison x), xs)--ska denna ersätta expr nu?)
-                        -- plus vi ska väl kalla på equality igen på nåt vis?
-                        else (expr,rest)
+        in equalityCheck rest expr
+        where 
+          equalityCheck :: [Token] -> Expression -> (Expression, [Token]) 
+          -- Antar att vi också måste ta hand om det tomma fallet? När listan är tom alltså?
+          -- Hmmm, men EOF-token är ju sist så de bör alltid finnas? Kan 
+          -- jag anta att de alltid finns? Då returnera när man stöter på de? De blir ju tokentype X = EOF?
+          -- Kan tänka mig att de kan skapa nån slags hjälpfunktion för detta eventuellt.
+          -- Det kanske också är ordnat som de ser ut just nu? Pga de matchar ju ej bang equal eller equal 
+          --equal?
+          equalityCheck  (x:xs) leftExpr = 
+            if getTokenType x == BANG_EQUAL || getTokenType x == EQUAL_EQUAL
+            then let (rightExpr,rest') = comparison xs
+              in equalityCheck  rest' Binary{left = leftExpr, operator = x, right = rightExpr} -- oklart hur vi gör ett binary expression ännu
+            else (leftExpr,x:xs)
+
+comparison :: [Token] -> (Expression,[Token])
+comparison x = let (expr,rest) = term x
+          in comparisonCheck rest expr 
+          where 
+            comparisonCheck :: [Token] -> Expression -> (Expression,[Token])
+            comparisonCheck (x:xs) leftExpr = let tokenType = getTokenType x in
+              if tokenType == GREATER || tokenType == GREATER_EQUAL || tokenType == LESS ||tokenType == LESS_EQUAL 
+                then let (rightExpr,rest') = term xs
+                  in comparisonCheck rest' Binary{left = leftExpr, operator = x, right = rightExpr}
+                else (leftExpr,x:xs)
+--Next up: Term :) 
+getTokenType :: Token -> TokenType
+getTokenType (TOKEN t _ _ _) = t 
