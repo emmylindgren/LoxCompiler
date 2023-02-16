@@ -1,5 +1,7 @@
 module Main (main) where
+
 import Scanner (scanTokens)
+import Parser(parse)
 
 main :: IO ()
 {-
