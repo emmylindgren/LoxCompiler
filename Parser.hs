@@ -1,33 +1,30 @@
 module Parser (parse) where
 
 import Tokens
--- Detta nedan måste ändras. Tittar mer på de senare! 
+{- Måste ju ha nån datatyp A som beskrivet i specen, lista av statements? 
 data Tree = Expression
   deriving Show
+-}
+data Statement = ExpressionStmt Expression 
+                | PrintStmt Expression 
+{-
+  Reglerna: (som de ser ut just nu, början av kap 8)
+  program        → statement* EOF ;
 
+  statement      → exprStmt
+                | printStmt ;
+
+  exprStmt       → expression ";" ;
+  printStmt      → "print" expression ";" ;
+-}
 --Använder just nu de literaler som redan är definierade i Tokens.hs
 data Expression = Literal Literal
                 | Unary {operator::Token,right::Expression}
                 | Binary {left::Expression, operator::Token,right::Expression}
                 | Grouping Expression
   deriving (Show)
-{- Nedan från kap 6 iaf, de är funktionerna som kommer behövas.
- De ska också returnera ett träd samt resterande del av tokenlistan.
- Just nu är trädet expression från dessa! 
- Tror det kommer vara så mEEN sen kmr expr komma från statement osv
- Då kommer alla måsta utgå från samma typ? Vet inte riktigt ännu.
-expression :: [Token] -> (Expression, [Token])
-equality :: [Token] -> (Expression, [Token])
-comparison :: [Token] -> (Expression, [Token])
-term       :: [Token] -> (Expression, [Token])
-factor     :: [Token] -> (Expression, [Token])
-unary :: [Token] -> (Expression, [Token])
-primary :: [Token] -> (Expression, [Token])
 
-Sen kommer vi ha några som returnerar statements? 
-Så kmr trädet = statement | Expression?? 
--}
---Detta lär returnera ett träd sedan som är byggt av expressions osv 
+--Detta lär returnera ett träd sedan som är byggt av statement osv 
 -- but for now, expression:) Detta blir fel! Vi har ju kvar EOF just nu så de är svårt
 -- så får Non-exhaustive patterns när de körs.
 parse :: [Token] -> Expression
@@ -38,11 +35,22 @@ parse x = let (tree,rest) = expression x
             else error "Unexpected leftover tokens." -- ska de bli fel här ens? Just nu blir alltid EOF
             -- som kmr tillbaka så :)   
 
+statement :: [Token] -> (Statement,[Token])
+statement tokens@(x:xs) = case getTokenType x of 
+  PRINT -> printStmt tokens
+  _ -> exprStmt tokens
+
+--next up: printStmt!
+
+exprStmt :: [Token] -> (Statement,[Token])
+exprStmt x = let (expr,first:rest) = expression x 
+    in if first `match` [SEMICOLON]
+      then (ExpressionStmt expr,rest)
+      else error ("Error in function ExprStmt. Expected ';' after expression on line "++ show (getTokenLine first)) 
 
 expression :: [Token] -> (Expression,[Token])
 expression = equality
 
---OBSOBS! Tänk på när listan är slut, när vi stöter på EOF, hanterar vi de fallet ens? 
 equality :: [Token] -> (Expression,[Token])
 equality x = let (equalityExpr,rest) = comparison x
     in binaryCheck rest equalityExpr [BANG_EQUAL,EQUAL_EQUAL] comparison
@@ -100,6 +108,6 @@ primary (x:xs) = case getTokenType x of
   LEFT_PAREN -> let (expr,first:rest) = expression xs
       in if first `match` [RIGHT_PAREN]
         then (Grouping expr, rest)
-        else error ("Error in function Primary. Expected ')' after expression on line "++ show (getTokenLine first))
+        else error ("Error in function Primary. Expected ')' after grouping on line "++ show (getTokenLine first))
   where 
     saveTokenLiteral = (Literal (getTokenLiteral x), xs)
