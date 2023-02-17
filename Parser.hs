@@ -1,10 +1,11 @@
 module Parser (parse) where
 
 import Tokens
-{- Måste ju ha nån datatyp A som beskrivet i specen, lista av declarations?? 
-data Tree = Declaration
-  deriving Show
+{- Måste ju ha nån datatyp A som beskrivet i specen = lista av statements. 
+Typ enligt nedan :) 
 -}
+data Tree = Tree [Statement] 
+  deriving Show
 --Expression är maybe i init pga den kan va "null"
 data Statement = ExpressionStmt Expression 
                 | PrintStmt Expression 
@@ -24,6 +25,7 @@ statement      → exprStmt
 data Expression = Literal Literal
                 | Unary {operator::Token,right::Expression}
                 | Variable {varname::Token}
+                | Assign {varname::Token, value::Expression}
                 | Binary {left::Expression, operator::Token,right::Expression}
                 | Grouping Expression
   deriving (Show)
@@ -78,7 +80,18 @@ exprStmt x = let (expr,first:rest) = expression x
       else loxError "Error in function ExprStmt. Expected ';' after expression on line " first
 
 expression :: [Token] -> (Expression,[Token])
-expression = equality
+expression = assignment
+
+-- fixa detta, går ej att jämföra typer sådär :) 
+assignment:: [Token] -> (Expression,[Token])
+assignment t = let (expr,first:rest) = equality t
+            in if first `match` [EQUAL]
+              then let(val,rest') = assignment rest
+              in if typeOf expr == typeOf Variable
+                then (Assign{varname= expr.name, value = val}, rest')
+                else loxError "Invalid assignment target in function assigment" val
+            else (expr,first:rest)
+     
 
 equality :: [Token] -> (Expression,[Token])
 equality x = let (equalityExpr,rest) = comparison x
