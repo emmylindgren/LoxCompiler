@@ -25,7 +25,7 @@ statement      → exprStmt
 data Expression = Literal Literal
                 | Unary {operator::Token,right::Expression}
                 | Variable {varname::Token}
-                | Assign {varname::Token, value::Expression}
+                | Assign {varAssignname::Token, value::Expression}
                 | Binary {left::Expression, operator::Token,right::Expression}
                 | Grouping Expression
   deriving (Show)
@@ -82,16 +82,27 @@ exprStmt x = let (expr,first:rest) = expression x
 expression :: [Token] -> (Expression,[Token])
 expression = assignment
 
--- fixa detta, går ej att jämföra typer sådär :) 
+-- nåt fel här med vad som skickas vidare, som [Token].
+-- just nu ger: parse [TOKEN NUMBER "" (NUM 1.0) 1,TOKEN PLUS "" NONE 1,TOKEN NUMBER "" (NUM 2.0) 1,TOKEN NUMBER "" (NUM 3.0) 1,TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1] fel, exprStmt vill ha semikolon
+-- och parse [TOKEN IDENTIFIER "" (ID "Hej") 1,TOKEN EQUAL "" NONE 1,TOKEN NUMBER "" (NUM 3.0) 1,TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1] ger rätt. 
+-- ändrar jag i   else (expr,first:rest) till   else (expr,rest) blir det tvärt om :) 
+-- fixa detta, hur jämföra typer? 
 assignment:: [Token] -> (Expression,[Token])
 assignment t = let (expr,first:rest) = equality t
             in if first `match` [EQUAL]
               then let(val,rest') = assignment rest
-              in if typeOf expr == typeOf Variable
-                then (Assign{varname= expr.name, value = val}, rest')
-                else loxError "Invalid assignment target in function assigment" val
+              in if checkifVariable expr
+                then (Assign{varAssignname = varname expr, value = val}, rest')
+                else loxError "Invalid assignment target in function assigment" first
             else (expr,first:rest)
-     
+-- Denna är otroligt oklar :) Har testat den med en variable och då fick jag sant.
+-- testade parsa : [TOKEN NUMBER "" (NUM 1.0) 1,TOKEN PLUS "" NONE 1,TOKEN NUMBER "" (NUM 2.0) 1,TOKEN EQUAL "" NONE 1,TOKEN NUMBER "" (NUM 3.0) 1, TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1] 
+-- då fick jag fel.. ska de bli fel då? Men får iaf falskt från denna funktion då. Rimligtvis ja? 1 + 2 = 3 är väl inte nåt?
+-- Detta funkar [TOKEN IDENTIFIER "" (ID "Hej") 1,TOKEN EQUAL "" NONE 1,TOKEN NUMBER "" (NUM 3.0) 1,TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1]
+-- Tror den funkar? 
+checkifVariable :: Expression -> Bool
+checkifVariable (Variable _) = True 
+checkifVariable _ = False 
 
 equality :: [Token] -> (Expression,[Token])
 equality x = let (equalityExpr,rest) = comparison x
