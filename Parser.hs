@@ -1,38 +1,62 @@
 module Parser (parse) where
 
 import Tokens
-{- Måste ju ha nån datatyp A som beskrivet i specen, lista av statements? 
-data Tree = Expression
+{- Måste ju ha nån datatyp A som beskrivet i specen, lista av declarations?? 
+data Tree = Declaration
   deriving Show
 -}
+--Expression är maybe i init pga den kan va "null"
 data Statement = ExpressionStmt Expression 
                 | PrintStmt Expression 
+                | VarDec{name::Token,initializer::Maybe Expression}
+        deriving (Show)
 {-
-  Reglerna: (som de ser ut just nu, början av kap 8)
-  program        → statement* EOF ;
+  Reglerna: (som de ser ut just nu, mitten av kap 8)
+program        → declaration* EOF ;
 
-  statement      → exprStmt
-                | printStmt ;
+declaration    → varDecl
+               | statement ;
 
-  exprStmt       → expression ";" ;
-  printStmt      → "print" expression ";" ;
+statement      → exprStmt
+               | printStmt ;
 -}
 --Använder just nu de literaler som redan är definierade i Tokens.hs
 data Expression = Literal Literal
                 | Unary {operator::Token,right::Expression}
+                | Variable {varname::Token}
                 | Binary {left::Expression, operator::Token,right::Expression}
                 | Grouping Expression
   deriving (Show)
 
---Detta lär returnera ett träd sedan som är byggt av statement osv 
+--Detta lär returnera ett träd sedan som är byggt av declaration (Statement) osv 
 -- som den gör nu. Vet dock inte om det är så superrätt men. 
 -- Jag tänker också att den ska returnera något av typen A, men kan man kanske 
 -- göra de till en datatyp som har en lista med statements? 
 parse :: [Token] -> [Statement]
 parse t@(x:xs) = if x `match` [EOF]
   then []
-  else let (stmt,rest) = statement t
-    in stmt : parse rest
+  else let (declarationStmt,rest) = declaration t
+    in declarationStmt : parse rest
+
+declaration ::[Token] -> (Statement,[Token])
+declaration tokens@(x:xs) = case getTokenType x of 
+  VAR -> varDeclaration xs
+  _ -> statement tokens
+
+
+varDeclaration :: [Token] -> (Statement,[Token])
+varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
+  then let (init,first:rest) = getInitializer xs
+    in if first `match` [SEMICOLON]
+      then (VarDec{name = x, initializer = init}, rest) 
+      else loxError "Expect ';' after variable declaration in function varDeclaration " x 
+  else loxError "Expect variable name in function varDeclaration" x
+  where 
+    getInitializer :: [Token] -> (Maybe Expression,[Token])
+    getInitializer t@(first:rest) = if first `match` [EQUAL]
+      then let (expr, rest') = expression rest
+        in (Just expr,rest')
+      else (Nothing, t)
 
 -- Lite frågetecken här. Tror dock printstmt bara ska få resten av listan, han skriver de i boken iaf 
 -- men tror exprstmt behöver hela? gör så i boken också just nu. 
@@ -106,6 +130,7 @@ primary (x:xs) = case getTokenType x of
   NIL -> saveTokenLiteral
   NUMBER -> saveTokenLiteral
   STRING -> saveTokenLiteral
+  IDENTIFIER -> (Variable{varname = x},xs)
   LEFT_PAREN -> let (expr,first:rest) = expression xs
       in if first `match` [RIGHT_PAREN]
         then (Grouping expr, rest)
