@@ -14,4 +14,4 @@ main =
         readFile filePath >>= \s -> printTokens s
 
 printTokens :: String -> IO ()
-printTokens s = mapM_ print $ scanTokens s
+printTokens s = mapM_ print $ parse $ scanTokens s

@@ -4,23 +4,18 @@ import Tokens
 {- Måste ju ha nån datatyp A som beskrivet i specen = lista av statements. 
 Typ enligt nedan :) 
 -}
-data Tree = Tree [Statement] 
+data Tree = Tree [Declaration] 
   deriving Show
 --Expression är maybe i init pga den kan va "null"
+data Declaration = VarDec{name::Token,initializer::Maybe Expression}
+                  | Statement Statement
+          deriving (Show)
+
 data Statement = ExpressionStmt Expression 
                 | PrintStmt Expression 
-                | VarDec{name::Token,initializer::Maybe Expression}
+                | BlockStmt [Declaration]
         deriving (Show)
-{-
-  Reglerna: (som de ser ut just nu, mitten av kap 8)
-program        → declaration* EOF ;
 
-declaration    → varDecl
-               | statement ;
-
-statement      → exprStmt
-               | printStmt ;
--}
 --Använder just nu de literaler som redan är definierade i Tokens.hs
 data Expression = Literal Literal
                 | Unary {operator::Token,right::Expression}
@@ -34,24 +29,23 @@ data Expression = Literal Literal
 -- som den gör nu. Vet dock inte om det är så superrätt men. 
 -- Jag tänker också att den ska returnera något av typen A, men kan man kanske 
 -- göra de till en datatyp som har en lista med statements? 
-parse :: [Token] -> [Statement]
+parse :: [Token] -> [Declaration]
 parse t@(x:xs) = if x `match` [EOF]
   then []
   else let (declarationStmt,rest) = declaration t
     in declarationStmt : parse rest
 
-declaration ::[Token] -> (Statement,[Token])
+declaration ::[Token] -> (Declaration,[Token])
 declaration tokens@(x:xs) = case getTokenType x of 
   VAR -> varDeclaration xs
   _ -> statement tokens
 
-
-varDeclaration :: [Token] -> (Statement,[Token])
+varDeclaration :: [Token] -> (Declaration,[Token])
 varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
   then let (init,first:rest) = getInitializer xs
     in if first `match` [SEMICOLON]
       then (VarDec{name = x, initializer = init}, rest) 
-      else loxError "Expect ';' after variable declaration in function varDeclaration " x 
+      else loxError "Expect ';' after variable declaration in function varDeclaration" x 
   else loxError "Expect variable name in function varDeclaration" x
   where 
     getInitializer :: [Token] -> (Maybe Expression,[Token])
@@ -62,16 +56,38 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
 
 -- Lite frågetecken här. Tror dock printstmt bara ska få resten av listan, han skriver de i boken iaf 
 -- men tror exprstmt behöver hela? gör så i boken också just nu. 
-statement :: [Token] -> (Statement,[Token])
+statement :: [Token] -> (Declaration,[Token])
 statement tokens@(x:xs) = case getTokenType x of 
-  PRINT -> printStmt xs
-  _ -> exprStmt tokens
+  PRINT -> let (stmt,rest) =  printStmt xs in (Statement stmt,rest)
+  LEFT_BRACE -> let (stmt,rest) =  blockStmt xs in (Statement stmt,rest)
+  _ -> let (stmt,rest) = exprStmt tokens in (Statement stmt,rest)
 
 printStmt:: [Token] -> (Statement,[Token])
 printStmt x = let (printexpr,first:rest) = expression x
     in if first `match` [SEMICOLON]
       then (PrintStmt printexpr,rest)
-      else loxError "Error in function PrintStmt. Expected ';' after value on line " first
+      else loxError "Error in function PrintStmt. Expected ';' after value" first
+
+{-
+  Function for parsing block statements.
+  A block statement is a list of declarations followed by a }. 
+  It takes one argument: 
+  [Token] (the tokens to be parsed).
+
+  Returns a tuple containing the block statement (with declarations nested) and 
+  the rest of the tokenlist. 
+-}
+blockStmt :: [Token] -> (Statement,[Token])
+blockStmt token = let (declarations,first:rest) = getDeclarations token
+          in if first `match` [RIGHT_BRACE]
+            then (BlockStmt declarations,rest)
+            else loxError "Error in function BlockStmt. Expected '}' after block" first
+  where 
+    getDeclarations :: [Token] -> ([Declaration],[Token])
+    getDeclarations tokens@(x:xs) = if not (x `match` [RIGHT_BRACE] || x `match` [EOF]) 
+      then let (firstdec,rest') = declaration tokens in 
+        let(restOfDec,rest'') = getDeclarations rest' in (firstdec:restOfDec,rest'')
+      else ([],tokens)
 
 exprStmt :: [Token] -> (Statement,[Token])
 exprStmt x = let (expr,first:rest) = expression x 
@@ -91,7 +107,6 @@ assignment t = let (expr,first:rest) = equality t
                 then (Assign{varAssignname = varname expr, value = val}, rest')
                 else loxError "Invalid assignment target in function assigment" first
             else (expr,first:rest)
-
 -- Denna är otroligt oklar :) Har testat den med en variable och då fick jag sant.
 -- testade parsa : [TOKEN NUMBER "" (NUM 1.0) 1,TOKEN PLUS "" NONE 1,TOKEN NUMBER "" (NUM 2.0) 1,TOKEN EQUAL "" NONE 1,TOKEN NUMBER "" (NUM 3.0) 1, TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1] 
 -- då fick jag fel.. ska de bli fel då? Men får iaf falskt från denna funktion då. Rimligtvis ja? 1 + 2 = 3 är väl inte nåt som ska godkännas?

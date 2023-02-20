@@ -1,51 +1,19 @@
-;) hej 
-!"2"
-5.6.54.4.3.54.5
-print "Hello, world!";
-true;  // Not false.
-false; // Not *not* false.
-"I am a string";
-"";    // The empty string.
-"123"; // This is a string, not a number.
- < 
-<= 
- > 
- >= 
- 1 == 2;         // false.
-"cat" != "dog"; // true.
-314 == "pi"; // false.
-!true;  // false.
-!false; // true.
-
-true and false; // false.
-true and true;  // true.
-false or false; 
-var average = (min + max) / 2;
-
+var a = "global a";
+var b = "global b";
+var c = "global c";
 {
-  print "One statement.";
-  print "Two statements.";
-}
-if (condition) {
-  print "yes";
-} else {
-  print "no";
-}
-var a = 1;
-while (a < 10) {
+  var a = "outer a";
+  var b = "outer b";
+  {
+    var a = "inner a";
+    print a;
+    print b;
+    print c;
+  }
   print a;
-  a = a + 1;
+  print b;
+  print c;
 }
-
-fun printSum(a, b) {
-  print a + b;
-}
-class Breakfast {
-  cook() {
-    print "Eggs a-fryin'!";
-  }
-
-  serve(who) {
-    print "Enjoy your breakfast, " + who + ".";
-  }
-}
+print a;
+print b;
+print c;
