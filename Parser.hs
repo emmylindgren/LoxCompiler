@@ -12,12 +12,16 @@ data Declaration = VarDec{name::Token,initializer::Maybe Expression}
           deriving (Show)
 
 data Statement = ExpressionStmt Expression 
-                | PrintStmt Expression 
+                | IfStmt {condition::Expression, thenBranch::Statement,
+                          elseBranch:: Maybe Statement}
+                | PrintStmt Expression
+                | WhileStmt {condition::Expression, body::Statement} 
                 | BlockStmt [Declaration]
         deriving (Show)
 
 --Använder just nu de literaler som redan är definierade i Tokens.hs
 data Expression = Literal Literal
+                | Logical {left::Expression,operator::Token,right::Expression}
                 | Unary {operator::Token,right::Expression}
                 | Variable {varname::Token}
                 | Assign {varAssignname::Token, value::Expression}
@@ -38,7 +42,7 @@ parse t@(x:xs) = if x `match` [EOF]
 declaration ::[Token] -> (Declaration,[Token])
 declaration tokens@(x:xs) = case getTokenType x of 
   VAR -> varDeclaration xs
-  _ -> statement tokens
+  _ -> let (stmt,rest) = statement tokens in (Statement stmt,rest)
 
 varDeclaration :: [Token] -> (Declaration,[Token])
 varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
@@ -56,11 +60,31 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
 
 -- Lite frågetecken här. Tror dock printstmt bara ska få resten av listan, han skriver de i boken iaf 
 -- men tror exprstmt behöver hela? gör så i boken också just nu. 
-statement :: [Token] -> (Declaration,[Token])
+statement :: [Token] -> (Statement,[Token])
 statement tokens@(x:xs) = case getTokenType x of 
-  PRINT -> let (stmt,rest) =  printStmt xs in (Statement stmt,rest)
-  LEFT_BRACE -> let (stmt,rest) =  blockStmt xs in (Statement stmt,rest)
-  _ -> let (stmt,rest) = exprStmt tokens in (Statement stmt,rest)
+  IF -> ifStmt xs 
+  PRINT -> printStmt xs
+  WHILE -> whileStmt xs
+  LEFT_BRACE -> blockStmt xs
+  _ -> exprStmt tokens
+
+ifStmt:: [Token] -> (Statement,[Token])
+ifStmt tokens@(x:xs) = let (expr,rest) = getExpr tokens
+            in let (thenBranch,rest') = statement rest
+            in let (elseBranch,rest'') = getElse rest'
+            in (IfStmt{condition=expr,thenBranch=thenBranch,elseBranch =elseBranch},rest'')
+  where
+    getExpr :: [Token] -> (Expression,[Token])
+    getExpr(x:xs) = if x `match` [LEFT_PAREN]
+      then let (expr,first:rest) = expression xs 
+          in if first `match` [RIGHT_PAREN]
+            then (expr,rest)
+            else loxError "Error in function ifStmt.Expect ')' after if condition" first
+      else loxError "Error in function ifStmt.Expect '(' after 'if'" x
+    getElse :: [Token] -> (Maybe Statement,[Token])
+    getElse (first:xs) = if first `match` [ELSE]
+      then let (stmt,rest) = statement xs in (Just stmt,rest)
+      else (Nothing,first:xs)
 
 printStmt:: [Token] -> (Statement,[Token])
 printStmt x = let (printexpr,first:rest) = expression x
@@ -68,6 +92,14 @@ printStmt x = let (printexpr,first:rest) = expression x
       then (PrintStmt printexpr,rest)
       else loxError "Error in function PrintStmt. Expected ';' after value" first
 
+whileStmt :: [Token] ->(Statement,[Token])
+whileStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
+    then let (expr,first:rest) = expression xs
+      in if first `match` [RIGHT_PAREN]
+        then let (stmt, rest') = statement rest
+          in (WhileStmt{condition=expr,body=stmt},rest')
+        else loxError "Error in function WhileStmt.Expect ')' after condition" first
+    else loxError "Error in function WhileStmt.Expect '(' after 'while'" x
 {-
   Function for parsing block statements.
   A block statement is a list of declarations followed by a }. 
@@ -100,7 +132,7 @@ expression = assignment
 
 -- Vet ej om denna funkar som den ska. Kolla genom. 
 assignment:: [Token] -> (Expression,[Token])
-assignment t = let (expr,first:rest) = equality t
+assignment t = let (expr,first:rest) = orExpr t
             in if first `match` [EQUAL]
               then let(val,rest') = assignment rest
               in if checkifVariable expr
@@ -115,6 +147,14 @@ assignment t = let (expr,first:rest) = equality t
 checkifVariable :: Expression -> Bool
 checkifVariable (Variable _) = True 
 checkifVariable _ = False 
+
+orExpr ::[Token] -> (Expression,[Token])
+orExpr x = let (orExpr,rest) = andExpr x 
+            in logicalCheck rest orExpr [OR] andExpr
+
+andExpr ::[Token] -> (Expression,[Token])
+andExpr x = let (orExpr,rest) = equality x 
+            in logicalCheck rest orExpr [AND] equality
 
 equality :: [Token] -> (Expression,[Token])
 equality x = let (equalityExpr,rest) = comparison x
@@ -149,6 +189,24 @@ binaryCheck (x:xs) leftExpr tokenMatches exprType =
   if x `match` tokenMatches
     then let (rightExpr,rest') = exprType xs
           in binaryCheck rest' Binary{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
+    else (leftExpr,x:xs)
+{-
+  Helperfunction to look for and if found parse one or several logical expressions. 
+  It takes four arguments: 
+  [Token] (the tokens to be parsed),  'Expression': the left hand expression in logical if it is to be created.
+  [TokenType] a list of the tokentypes allowed to create the logical expression.
+  [Token] -> (Expression,[Token]) the function creating the expression to be on the 
+  right hand side of the logical expression.
+
+  Returns a tuple containing the logical expression (with any more logical expressions nested) and 
+  the rest of the tokenlist. 
+-}
+logicalCheck ::[Token] -> Expression -> [TokenType] -> ([Token] -> (Expression,[Token]))
+              -> (Expression,[Token])
+logicalCheck (x:xs) leftExpr tokenMatches exprType =
+  if x `match` tokenMatches
+    then let (rightExpr,rest') = exprType xs
+          in logicalCheck rest' Logical{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
     else (leftExpr,x:xs)
 
 unary :: [Token] -> (Expression,[Token])
@@ -190,7 +248,7 @@ getTokenLine (TOKEN _ _ _ l) = l
 
 {-
   Function to throw an error in parsing state, 
-  It takes two arguments, one of type [Char] (the string)
+  It takes two arguments, one of type [Char] (the string containing error info)
   and one of type 'Token', the token of which threw an error. 
 -} 
 loxError :: [Char] -> Token -> error 
