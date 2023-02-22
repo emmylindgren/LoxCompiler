@@ -10,7 +10,7 @@ main =
         readFile filePath >>= \s -> printTokens s
 -}
 main =
-    let filePath = "C:\\Users\\Emmy\\Documents\\Programspråk\\OU1\\anotherloxsource.lox" in
+    let filePath = "C:\\Users\\Emmy\\Documents\\Programspråk\\OU1\\loxsourceEasy.lox" in
         readFile filePath >>= \s -> printTokens s
 
 printTokens :: String -> IO ()

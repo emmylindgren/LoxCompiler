@@ -26,7 +26,32 @@ data Expression = Literal Literal
                 | Assign {varAssignname::Token, value::Expression}
                 | Binary {left::Expression, operator::Token,right::Expression}
                 | Grouping Expression
-  deriving (Show)
+      --deriving (Show)
+-- fråga: hantera när literal är null?
+instance Show Expression where 
+  show (Literal l) = case l of 
+    STR s -> show s
+    NUM n -> show n
+    literalType  -> show literalType
+  show (Logical left op right) = "("++ show left ++ getOperator op ++ show right ++ ")"
+  show (Unary op right) = "(" ++ getOperator op ++ show right ++ ")"
+  show (Variable t) = getIdentifierName t 
+  show (Assign name val) = getIdentifierName name ++ " = "++ show val ++ ";"
+  show (Binary left op right) = "(" ++ show left ++ getOperator op ++ show right ++ ")"
+  show (Grouping expr) = "(" ++ show expr ++ ")"
+
+{-
+  show (Assign n v) = show "V DEC -> " ++ getIdName n ++ " = "++ show v ++ ";"
+    where getIdName t = case getTokenLiteral t of 
+                ID s -> s
+  Detta nedan på variabel deklaration såklart :)
+    show (Assign n v) = show "V DEC -> " ++ getIdName n ++ if isNothing v
+    then  " = "++ show v ++ ";"
+    else ";"
+    where getIdName t = case getTokenLiteral t of 
+                ID s -> s
+-}
+
 
 parse :: [Token] -> Program
 parse tokens = let decs = getDeclarations tokens
@@ -171,7 +196,7 @@ exprStmt :: [Token] -> (Statement,[Token])
 exprStmt x = let (expr,first:rest) = expression x
       in if first `match` [SEMICOLON]
       then (ExpressionStmt expr,rest)
-      else loxError "Error in function ExprStmt. Expected ';' after expression on line " first
+      else loxError "Error in function ExprStmt. Expected ';' after expression" first
 
 expression :: [Token] -> (Expression,[Token])
 expression = assignment
@@ -290,6 +315,27 @@ getTokenLiteral (TOKEN _ _ l _) = l
 getTokenLine :: Token -> Int
 getTokenLine (TOKEN _ _ _ l) = l
 
+getIdentifierName :: Token -> String 
+getIdentifierName t = case getTokenLiteral t of 
+                ID s -> s
+getOperator :: Token -> String 
+getOperator t = case getTokenType t of 
+  MINUS -> " - "
+  PLUS -> " + "
+  SLASH -> " / "
+  STAR -> " * "
+  BANG -> " !"
+  BANG_EQUAL -> " != "
+  EQUAL -> " = "
+  EQUAL_EQUAL -> " == "
+  GREATER -> " > "
+  GREATER_EQUAL -> " >= "
+  LESS -> " < "
+  LESS_EQUAL -> " <= "
+  AND -> " && "
+  OR -> " || "
+
+-- COMMA ? DOT ? SEMICOLON? 
 {-
   Function to throw an error in parsing state, 
   It takes two arguments, one of type [Char] (the string containing error info)
