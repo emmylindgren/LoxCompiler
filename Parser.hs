@@ -29,8 +29,7 @@ instance Show Statement where
       else "else " ++ show (fromJust elseBranch)
   show (PrintStmt e) = "print " ++ show e
   show (WhileStmt cond body) = "while(" ++ show cond ++ ")" ++ show body
-  show (BlockStmt declarations) = "{" ++ (unlines $ map show declarations) ++ "}"
-  --blockstmt visar alla stmts men med newline mellan :) 
+  show (BlockStmt declarations) = "{" ++ concatMap show declarations ++ "}"
 
 data Expression = Literal Literal
                 | Logical {left::Expression,operator::Token,right::Expression}
@@ -39,7 +38,6 @@ data Expression = Literal Literal
                 | Assign {varAssignname::Token, value::Expression}
                 | Binary {left::Expression, operator::Token,right::Expression}
                 | Grouping Expression
-
 instance Show Expression where
   show (Literal l) = case l of
     STR s -> show s
@@ -48,7 +46,7 @@ instance Show Expression where
   show (Logical left op right) = "("++ show left ++ getOperator op ++ show right ++ ")"
   show (Unary op right) = "(" ++ getOperator op ++ show right ++ ")"
   show (Variable t) = getIdentifierName t
-  show (Assign name val) = getIdentifierName name ++ " = "++ show val ++ ";"
+  show (Assign name val) = getIdentifierName name ++ " = "++ show val
   show (Binary left op right) = "(" ++ show left ++ getOperator op ++ show right ++ ")"
   show (Grouping expr) = "(" ++ show expr ++ ")"
 
@@ -80,9 +78,7 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
       then let (expr, rest') = expression rest
         in (Just expr,rest')
       else (Nothing, t)
-
--- Lite frågetecken här. Tror dock printstmt bara ska få resten av listan, han skriver de i boken iaf 
--- men tror exprstmt behöver hela? gör så i boken också just nu. 
+ 
 statement :: [Token] -> (Statement,[Token])
 statement tokens@(x:xs) = case getTokenType x of
   FOR -> forStmt xs
@@ -195,7 +191,7 @@ exprStmt :: [Token] -> (Statement,[Token])
 exprStmt x = let (expr,first:rest) = expression x
       in if first `match` [SEMICOLON]
       then (ExpressionStmt expr,rest)
-      else loxError "Error in function ExprStmt. Expected ';' after expression" first
+      else loxError "Error in function ExprStmt. Expected ';' after expression" (head x)
 
 expression :: [Token] -> (Expression,[Token])
 expression = assignment
@@ -209,11 +205,7 @@ assignment t = let (expr,first:rest) = orExpr t
                 then (Assign{varAssignname = varname expr, value = val}, rest')
                 else loxError "Error in function Assigment. Invalid assignment target" first
             else (expr,first:rest)
--- Denna är otroligt oklar :) Har testat den med en variable och då fick jag sant.
--- testade parsa : [TOKEN NUMBER "" (NUM 1.0) 1,TOKEN PLUS "" NONE 1,TOKEN NUMBER "" (NUM 2.0) 1,TOKEN EQUAL "" NONE 1,TOKEN NUMBER "" (NUM 3.0) 1, TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1] 
--- då fick jag fel.. ska de bli fel då? Men får iaf falskt från denna funktion då. Rimligtvis ja? 1 + 2 = 3 är väl inte nåt som ska godkännas?
--- Detta funkar [TOKEN IDENTIFIER "" (ID "Hej") 1,TOKEN EQUAL "" NONE 1,TOKEN NUMBER "" (NUM 3.0) 1,TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1]
--- Tror den funkar? 
+
 checkifVariable :: Expression -> Bool
 checkifVariable (Variable _) = True
 checkifVariable _ = False
