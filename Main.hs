@@ -14,4 +14,6 @@ main =
         readFile filePath >>= \s -> printTokens s
 
 printTokens :: String -> IO ()
-printTokens s = mapM_ print $ parse $ scanTokens s
+printTokens s = print $ parse $ scanTokens s
+--Nedan för att printa ifall man får tillbaka en lista av scanTokens
+--printTokens s = mapM_ print $ parse $ scanTokens s

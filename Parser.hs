@@ -1,13 +1,10 @@
 module Parser (parse) where
-
 import Tokens
 import Data.Maybe (isNothing, fromJust)
-{- Måste ju ha nån datatyp A som beskrivet i specen = lista av statements. 
-Typ enligt nedan :) 
--}
-data Tree = Tree [Declaration]
+
+data A = A [Declaration]
   deriving Show
---Expression är maybe i init pga den kan va "null"
+
 data Declaration = VarDec{name::Token,initializer::Maybe Expression}
                   | Statement Statement
           deriving (Show)
@@ -30,15 +27,15 @@ data Expression = Literal Literal
                 | Grouping Expression
   deriving (Show)
 
---Detta lär returnera ett träd sedan som är byggt av declaration (Statement) osv 
--- som den gör nu. Vet dock inte om det är så superrätt men. 
--- Jag tänker också att den ska returnera något av typen A, men kan man kanske 
--- göra de till en datatyp som har en lista med statements? 
-parse :: [Token] -> [Declaration]
-parse t@(x:xs) = if x `match` [EOF]
+parse :: [Token] -> A
+parse tokens = let decs = getDeclarations tokens
+      in A decs
+
+getDeclarations :: [Token] -> [Declaration]
+getDeclarations t@(x:xs) = if x `match` [EOF]
   then []
   else let (declarationStmt,rest) = declaration t
-    in declarationStmt : parse rest
+    in declarationStmt : getDeclarations rest
 
 declaration ::[Token] -> (Declaration,[Token])
 declaration tokens@(x:xs) = case getTokenType x of
@@ -263,8 +260,6 @@ unary (x:xs) = if x `match` [BANG,MINUS]
         in (Unary{operator = x, right= unaryExpr}, rest)
   else primary (x:xs)
 
--- Obs! Bör vi göra nåt ifall token inte matchar någon av fallen? Bör vi
--- kasta fel då? EOF här? 
 primary :: [Token] ->(Expression,[Token])
 primary (x:xs) = case getTokenType x of
   FALSE -> saveTokenLiteral
