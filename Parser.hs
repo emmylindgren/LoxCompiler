@@ -2,6 +2,12 @@ module Parser (parse) where
 import Tokens
 import Data.Maybe (isNothing, fromJust)
 
+{-|
+    Author: Emmy Lindgren
+    id19eln
+    Date: 2023-02-XX
+-}
+
 data Program = PROGRAM [Declaration]
 instance Show Program where
     show (PROGRAM decs) = (show $ length decs) ++ "\n" ++ (unlines $ map show decs)
@@ -13,7 +19,7 @@ instance Show Declaration where
     if isNothing init
       then ";"
       else  "=" ++ show (fromJust init) ++ ";"
-  show (Statement s) = show s ++ ";"
+  show (Statement s) = show s
 
 data Statement = ExpressionStmt Expression
                 | IfStmt {condition::Expression, thenBranch::Statement,
@@ -22,12 +28,12 @@ data Statement = ExpressionStmt Expression
                 | WhileStmt {condition::Expression, body::Statement}
                 | BlockStmt [Declaration]
 instance Show Statement where
-  show (ExpressionStmt e) = show e
+  show (ExpressionStmt e) = show e ++ ";"
   show (IfStmt cond thenBranch elseBranch) = "if(" ++show cond ++") "
     ++ show thenBranch ++ if isNothing elseBranch
       then ""
       else "else " ++ show (fromJust elseBranch)
-  show (PrintStmt e) = "print " ++ show e
+  show (PrintStmt e) = "print " ++ show e ++ ";"
   show (WhileStmt cond body) = "while(" ++ show cond ++ ")" ++ show body
   show (BlockStmt declarations) = "{" ++ concatMap show declarations ++ "}"
 
@@ -169,8 +175,7 @@ whileStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
 {-
   Function for parsing block statements.
   A block statement is a list of declarations followed by a }. 
-  It takes one argument: 
-  [Token] (the tokens to be parsed).
+  It takes one argument: [Token] (the tokens to be parsed).
 
   Returns a tuple containing the block statement (with declarations nested) and 
   the rest of the tokenlist. 
@@ -196,7 +201,17 @@ exprStmt x = let (expr,first:rest) = expression x
 expression :: [Token] -> (Expression,[Token])
 expression = assignment
 
--- Vet ej om denna funkar som den ska. Kolla genom. 
+{-
+  Function for parsing assignment expressions.
+  A assignment expression is either an assignment or a logic-or-expression.
+  
+  Assigment is a identifiertoken, a Variable, followed by a '=' and a value 
+  of type expression. Throws error if left hand side is not a Variable, and 
+  therefore not a valid assignmenttarget. 
+  
+  If the first token is not followed by a '=', the tokens are passed on to function
+  orExpr to make a logic-or-expression. 
+-}
 assignment:: [Token] -> (Expression,[Token])
 assignment t = let (expr,first:rest) = orExpr t
             in if first `match` [EQUAL]
@@ -205,35 +220,58 @@ assignment t = let (expr,first:rest) = orExpr t
                 then (Assign{varAssignname = varname expr, value = val}, rest')
                 else loxError "Error in function Assigment. Invalid assignment target" first
             else (expr,first:rest)
-
-checkifVariable :: Expression -> Bool
-checkifVariable (Variable _) = True
-checkifVariable _ = False
-
+    where
+      checkifVariable :: Expression -> Bool
+      checkifVariable (Variable _) = True
+      checkifVariable _ = False
+{-
+  Function for parsing logic-or-expression as a logical expression. 
+  A logic-or-expression is a logic-and-expression followed by
+  zero or more "or" each followed another logic-and-expression.
+-}
 orExpr ::[Token] -> (Expression,[Token])
 orExpr x = let (orExpr,rest) = andExpr x
             in logicalCheck rest orExpr [OR] andExpr
-
+{-
+  Function for parsing logic-and-expression as a logical expression.
+  A logic-and-expression is a equality-expression followed by
+  zero or more "and" each followed another equality-expression.
+-}
 andExpr ::[Token] -> (Expression,[Token])
 andExpr x = let (orExpr,rest) = equality x
             in logicalCheck rest orExpr [AND] equality
-
+{-
+  Function for parsing equality-expression as a binary expression.
+  A equality-expression is a comparison-expression followed by
+  zero or more "!=" or "==" each followed by another comparison-expression.
+-}
 equality :: [Token] -> (Expression,[Token])
 equality x = let (equalityExpr,rest) = comparison x
               in binaryCheck rest equalityExpr [BANG_EQUAL,EQUAL_EQUAL] comparison
-
+{-
+  Function for parsing comparison-expression as a binary expression.
+  A comparison-expression is a term-expression followed by
+  zero or more ">",">=","<" or "<=" each followed by another term-expression.
+-}
 comparison :: [Token] -> (Expression,[Token])
 comparison x = let (comparisonExpr,rest) = term x
                 in binaryCheck rest comparisonExpr [GREATER,GREATER_EQUAL,LESS,LESS_EQUAL] term
-
+{-
+  Function for parsing term-expression as a binary expression.
+  A term-expression is a factor-expression followed by
+  zero or more "-" or "+" each followed by another factor-expression.
+-}
 term :: [Token] -> (Expression,[Token])
 term x = let (factorExpr,rest) = factor x
           in binaryCheck rest factorExpr [MINUS,PLUS] factor
-
+{-
+  Function for parsing factor-expression as a binary expression.
+  A term-expression is a unary-expression followed by
+  zero or more "/" or "*" each followed by another unary-expression.
+-}
 factor :: [Token] -> (Expression,[Token])
 factor x = let (unaryExpr,rest) = unary x
             in binaryCheck rest unaryExpr [SLASH,STAR] unary
-
 {-
   Helperfunction to look for and if found parse one or several binary expressions. 
   It takes four arguments: 
@@ -327,7 +365,6 @@ getOperator t = case getTokenType t of
   AND -> " && "
   OR -> " || "
 
--- COMMA ? DOT ? SEMICOLON? 
 {-
   Function to throw an error in parsing state, 
   It takes two arguments, one of type [Char] (the string containing error info)
