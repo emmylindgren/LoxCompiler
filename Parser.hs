@@ -2,8 +2,9 @@ module Parser (parse) where
 import Tokens
 import Data.Maybe (isNothing, fromJust)
 
-data A = A [Declaration]
-  deriving Show
+data Program = PROGRAM [Declaration]
+instance Show Program where
+    show (PROGRAM decs) = (show $ length decs) ++ "\n" ++ (unlines $ map show decs)
 
 data Declaration = VarDec{name::Token,initializer::Maybe Expression}
                   | Statement Statement
@@ -27,9 +28,9 @@ data Expression = Literal Literal
                 | Grouping Expression
   deriving (Show)
 
-parse :: [Token] -> A
+parse :: [Token] -> Program
 parse tokens = let decs = getDeclarations tokens
-      in A decs
+      in PROGRAM decs
 
 getDeclarations :: [Token] -> [Declaration]
 getDeclarations t@(x:xs) = if x `match` [EOF]
