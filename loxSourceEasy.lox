@@ -1,5 +1,24 @@
-true and false;
--2.0;
-!true;
-(2==3);
-2+3*5;
+//true and false;
+//-2.0;
+//!true;
+//(2==3);
+//2+3*5;
+//true; 5; 5*2;
+//nedan funkar ej :) non-exhaustive patterns in case
+//if ( a < 5 ) { print g; 88; } else { if (false) { while (a=5) }}
+
+//var a = 5;
+//var c=(2/7);
+//var str     = "hello";
+//var falseeee  = false;
+//var empty;
+
+if (a) 5*2; 
+if (a) 5*2; else 99;
+{ 5; 7; 9; }
+//nedan måste nog hanteras? oväntade tokens? Men också
+//bör man väl få ett felmeddelande om man ej hittar ett expr efter while? 
+if ( a < 5 ) { print g; 88; }else 
+{ if (false) {
+     var hej = "HEJA";
+      }}

@@ -8,7 +8,12 @@ instance Show Program where
 
 data Declaration = VarDec{name::Token,initializer::Maybe Expression}
                   | Statement Statement
-          deriving (Show)
+instance Show Declaration where
+  show (VarDec name init) = "V DEC -> " ++ getIdentifierName name ++
+    if isNothing init
+      then ";"
+      else  "=" ++ show (fromJust init) ++ ";"
+  show (Statement s) = show s ++ ";"
 
 data Statement = ExpressionStmt Expression
                 | IfStmt {condition::Expression, thenBranch::Statement,
@@ -16,9 +21,17 @@ data Statement = ExpressionStmt Expression
                 | PrintStmt Expression
                 | WhileStmt {condition::Expression, body::Statement}
                 | BlockStmt [Declaration]
-        deriving (Show)
+instance Show Statement where
+  show (ExpressionStmt e) = show e
+  show (IfStmt cond thenBranch elseBranch) = "if(" ++show cond ++") "
+    ++ show thenBranch ++ if isNothing elseBranch
+      then ""
+      else "else " ++ show (fromJust elseBranch)
+  show (PrintStmt e) = "print " ++ show e
+  show (WhileStmt cond body) = "while(" ++ show cond ++ ")" ++ show body
+  show (BlockStmt declarations) = "{" ++ (unlines $ map show declarations) ++ "}"
+  --blockstmt visar alla stmts men med newline mellan :) 
 
---Använder just nu de literaler som redan är definierade i Tokens.hs
 data Expression = Literal Literal
                 | Logical {left::Expression,operator::Token,right::Expression}
                 | Unary {operator::Token,right::Expression}
@@ -26,32 +39,18 @@ data Expression = Literal Literal
                 | Assign {varAssignname::Token, value::Expression}
                 | Binary {left::Expression, operator::Token,right::Expression}
                 | Grouping Expression
-      --deriving (Show)
--- fråga: hantera när literal är null?
-instance Show Expression where 
-  show (Literal l) = case l of 
+
+instance Show Expression where
+  show (Literal l) = case l of
     STR s -> show s
     NUM n -> show n
     literalType  -> show literalType
   show (Logical left op right) = "("++ show left ++ getOperator op ++ show right ++ ")"
   show (Unary op right) = "(" ++ getOperator op ++ show right ++ ")"
-  show (Variable t) = getIdentifierName t 
+  show (Variable t) = getIdentifierName t
   show (Assign name val) = getIdentifierName name ++ " = "++ show val ++ ";"
   show (Binary left op right) = "(" ++ show left ++ getOperator op ++ show right ++ ")"
   show (Grouping expr) = "(" ++ show expr ++ ")"
-
-{-
-  show (Assign n v) = show "V DEC -> " ++ getIdName n ++ " = "++ show v ++ ";"
-    where getIdName t = case getTokenLiteral t of 
-                ID s -> s
-  Detta nedan på variabel deklaration såklart :)
-    show (Assign n v) = show "V DEC -> " ++ getIdName n ++ if isNothing v
-    then  " = "++ show v ++ ";"
-    else ";"
-    where getIdName t = case getTokenLiteral t of 
-                ID s -> s
--}
-
 
 parse :: [Token] -> Program
 parse tokens = let decs = getDeclarations tokens
@@ -73,8 +72,8 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
   then let (init,first:rest) = getInitializer xs
     in if first `match` [SEMICOLON]
       then (VarDec{name = x, initializer = init}, rest)
-      else loxError "Expect ';' after variable declaration in function varDeclaration" x
-  else loxError "Expect variable name in function varDeclaration" x
+      else loxError "Error in function varDeclaration. Expected ';' after variable declaration" x
+  else loxError "Error in function varDeclaration. Expected variable name" x
   where
     getInitializer :: [Token] -> (Maybe Expression,[Token])
     getInitializer t@(first:rest) = if first `match` [EQUAL]
@@ -122,22 +121,22 @@ forStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
         if f `match` [RIGHT_PAREN]
           then (Just incr,rest)
           else loxError "Error in function ForStmt. Expected ')' after for clauses" f
---body incr cond init 
+
 createForLoop :: Statement -> Maybe Expression -> Maybe Expression -> Maybe Declaration -> Statement
 createForLoop body incr cond init = checkInit (checkCond (checkIncr body incr) cond) init
-  where 
+  where
     checkIncr:: Statement -> Maybe Expression -> Statement
     checkIncr b i = if isNothing i
       then b
       else BlockStmt [Statement b, Statement (ExpressionStmt (fromJust i))]
     checkCond :: Statement -> Maybe Expression -> Statement
-    checkCond b c = if isNothing c 
-      then WhileStmt{condition= Literal TRUE_LIT,body=b} 
+    checkCond b c = if isNothing c
+      then WhileStmt{condition= Literal TRUE_LIT,body=b}
       else WhileStmt{condition= fromJust c,body=b}
     checkInit :: Statement -> Maybe Declaration -> Statement
-    checkInit b i = if isNothing i 
-      then b 
-      else BlockStmt[fromJust i,Statement b]
+    checkInit b i = if isNothing i
+      then b
+      else BlockStmt [fromJust i,Statement b]
 
 ifStmt:: [Token] -> (Statement,[Token])
 ifStmt tokens@(x:xs) = let (expr,rest) = getExpr tokens
@@ -150,8 +149,8 @@ ifStmt tokens@(x:xs) = let (expr,rest) = getExpr tokens
       then let (expr,first:rest) = expression xs
           in if first `match` [RIGHT_PAREN]
             then (expr,rest)
-            else loxError "Error in function ifStmt.Expect ')' after if condition" first
-      else loxError "Error in function ifStmt.Expect '(' after 'if'" x
+            else loxError "Error in function ifStmt. Expected ')' after if condition" first
+      else loxError "Error in function ifStmt. Expected '(' after 'if'" x
     getElse :: [Token] -> (Maybe Statement,[Token])
     getElse (first:xs) = if first `match` [ELSE]
       then let (stmt,rest) = statement xs in (Just stmt,rest)
@@ -169,8 +168,8 @@ whileStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
       in if first `match` [RIGHT_PAREN]
         then let (stmt, rest') = statement rest
           in (WhileStmt{condition=expr,body=stmt},rest')
-        else loxError "Error in function WhileStmt.Expect ')' after condition" first
-    else loxError "Error in function WhileStmt.Expect '(' after 'while'" x
+        else loxError "Error in function WhileStmt. Expected ')' after condition" first
+    else loxError "Error in function WhileStmt. Expected '(' after 'while'" x
 {-
   Function for parsing block statements.
   A block statement is a list of declarations followed by a }. 
@@ -208,7 +207,7 @@ assignment t = let (expr,first:rest) = orExpr t
               then let(val,rest') = assignment rest
               in if checkifVariable expr
                 then (Assign{varAssignname = varname expr, value = val}, rest')
-                else loxError "Invalid assignment target in function assigment" first
+                else loxError "Error in function Assigment. Invalid assignment target" first
             else (expr,first:rest)
 -- Denna är otroligt oklar :) Har testat den med en variable och då fick jag sant.
 -- testade parsa : [TOKEN NUMBER "" (NUM 1.0) 1,TOKEN PLUS "" NONE 1,TOKEN NUMBER "" (NUM 2.0) 1,TOKEN EQUAL "" NONE 1,TOKEN NUMBER "" (NUM 3.0) 1, TOKEN SEMICOLON "" NONE 1,TOKEN EOF "" NONE 1] 
@@ -298,6 +297,7 @@ primary (x:xs) = case getTokenType x of
       in if first `match` [RIGHT_PAREN]
         then (Grouping expr, rest)
         else loxError "Error in function Primary. Expected ')' after grouping on line " first
+  _ -> loxError ("Error in function Primary. Unexpected token " ++ show (getTokenType x)) x
   where
     saveTokenLiteral = (Literal (getTokenLiteral x), xs)
 
@@ -315,11 +315,11 @@ getTokenLiteral (TOKEN _ _ l _) = l
 getTokenLine :: Token -> Int
 getTokenLine (TOKEN _ _ _ l) = l
 
-getIdentifierName :: Token -> String 
-getIdentifierName t = case getTokenLiteral t of 
+getIdentifierName :: Token -> String
+getIdentifierName t = case getTokenLiteral t of
                 ID s -> s
-getOperator :: Token -> String 
-getOperator t = case getTokenType t of 
+getOperator :: Token -> String
+getOperator t = case getTokenType t of
   MINUS -> " - "
   PLUS -> " + "
   SLASH -> " / "
