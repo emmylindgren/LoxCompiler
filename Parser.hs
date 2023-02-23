@@ -42,6 +42,7 @@ data Expression = Literal Literal
                 | Variable {varname::Token}
                 | Assign {varAssignname::Token, value::Expression}
                 | Binary {left::Expression, operator::Token,right::Expression}
+                | Call {callee::Expression,paren::Token,arguments::[Expression]}
                 | Grouping Expression
 instance Show Expression where
   show (Literal l) = case l of
@@ -53,6 +54,10 @@ instance Show Expression where
   show (Variable t) = getIdentifierName t
   show (Assign name val) = getIdentifierName name ++ " = "++ show val
   show (Binary left op right) = "(" ++ show left ++ getOperator op ++ show right ++ ")"
+  show (Call callee _ args) = show callee ++"(" ++ concatMap getParamString args ++ ")"
+    where
+      getParamString:: Expression -> [Char]
+      getParamString x = "," ++ show x
   show (Grouping expr) = "(" ++ show expr ++ ")"
 
 {-
@@ -373,7 +378,33 @@ unary :: [Token] -> (Expression,[Token])
 unary tokens@(x:xs) = if x `match` [BANG,MINUS]
   then let (unaryExpr,rest) = unary xs
         in (Unary{operator = x, right= unaryExpr}, rest)
-  else primary tokens
+  else call tokens
+
+call :: [Token] -> (Expression,[Token])
+call tokens@(x:xs) = checkForFuncCall primaryexpr rest
+  where
+    (primaryexpr,rest) = primary tokens
+    checkForFuncCall :: Expression -> [Token] -> (Expression,[Token])
+    checkForFuncCall expr (x:xs) = if x `match` [LEFT_PAREN]
+      then let(paramExpr,rest') = finishCall expr xs x
+        in checkForFuncCall paramExpr rest'
+      else (expr,x:xs)
+    finishCall :: Expression -> [Token] -> Token -> (Expression,[Token])
+    finishCall expr (x:xs) parenT
+      | x `match` [RIGHT_PAREN] = (Call{callee = expr,paren=parenT,arguments=[]},xs)
+      | f `match` [RIGHT_PAREN] = (Call{callee = expr,paren=parenT,arguments=firstArg:restArgs},restArgsRest)
+      | otherwise = loxError "Error in function call. Expected ')' after arguments" parenT
+      where
+          (firstArg, firstArgRest) = expression (x:xs)
+          (restArgs, f:restArgsRest) = getArguments firstArgRest
+    getArguments :: [Token] -> ([Expression],[Token])
+    getArguments tokens@(x:xs) = if x `match` [COMMA]
+      then (firstexpr:restOfExpr,restRest)
+      else ([],tokens)
+      where
+        (firstexpr,firstRest) = expression xs
+        (restOfExpr,restRest) = getArguments firstRest
+-- Call {callee::Expression,paren::Token,arguments::[Expression]}
 {-
   Function for parsing primary-expressions.
   A primary-expression could be false,true,nil, number,string (as Literals),
