@@ -94,36 +94,52 @@ statement tokens@(x:xs) = case getTokenType x of
   LEFT_BRACE -> blockStmt xs
   _ -> exprStmt tokens
 
+{-
+  Function for parsing a for-statement. 
+  A for-statement is a initializer, a stopcondition and a increment all 
+  within "()". Initializer and stopcondition has to be followed by ";" and 
+  all three clauses can be omitted, but not the ";". 
+  This is followed by a body in the form of a statement. 
+
+  The for-statement is created using the while-statement datatype. 
+-}
 forStmt:: [Token] -> (Statement,[Token])
 forStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
-  then let (init,rest) = getInit xs in
-    let (cond,rest') = getCond rest in
-      let (incr,rest'') = getIncr rest' in
-        let(body,rest''') = statement rest'' in
-          (createForLoop body incr cond init,rest''')
+  then (createForLoop body incr cond init,bodyRest)
   else loxError "Error in function ForStmt. Expected '(' after 'for'" x
   where
+    (init,initRest) = getInit xs
+    (cond,condRest) = getCond initRest
+    (incr,incrRest) = getIncr condRest
+    (body,bodyRest) = statement incrRest
     getInit:: [Token] -> (Maybe Declaration,[Token])
     getInit tokens@(x:xs) = case getTokenType x of
-      SEMICOLON -> (Nothing,tokens)
+      SEMICOLON -> (Nothing,xs)
       VAR -> let (init,rest) = varDeclaration xs in (Just init, rest)
       _ -> let (init,rest) = exprStmt xs in (Just (Statement init),rest)
-
     getCond:: [Token] -> (Maybe Expression,[Token])
     getCond tokens@(x:xs) = if x `match` [SEMICOLON]
-      then (Nothing,tokens)
+      then (Nothing,xs)
       else let (cond,first:rest) = expression tokens in
         if first `match` [SEMICOLON]
           then (Just cond,rest)
           else loxError "Error in function ForStmt. Expected ';' after loop condition" first
     getIncr:: [Token] -> (Maybe Expression,[Token])
     getIncr tokens@(x:xs) = if x `match` [RIGHT_PAREN]
-      then (Nothing,tokens)
+      then (Nothing,xs)
       else let (incr,f:rest) = expression tokens in
         if f `match` [RIGHT_PAREN]
           then (Just incr,rest)
           else loxError "Error in function ForStmt. Expected ')' after for clauses" f
-
+{-
+  Helperfunction for creating a for-statement.  
+  If there is a initializer then a block is created starting with the initializer expression. 
+  A while-expression is then added to the block containing the condition if there is one. If there is
+  no condition then True is added as the condition.
+  The body is added to the while-expression and the increment-expression is added last in the body
+  as to increment it every iteration. 
+  If there is no initializer then no block is created, just the while-expression.
+-}
 createForLoop :: Statement -> Maybe Expression -> Maybe Expression -> Maybe Declaration -> Statement
 createForLoop body incr cond init = checkInit (checkCond (checkIncr body incr) cond) init
   where
@@ -139,13 +155,19 @@ createForLoop body incr cond init = checkInit (checkCond (checkIncr body incr) c
     checkInit b i = if isNothing i
       then b
       else BlockStmt [fromJust i,Statement b]
-
+{-
+  Function for parsing a if-statement. 
+  A if-statement is a expression representing the condition, followed by 
+  a statement representing the "then"-body of the statement optionally followed by 
+  "else" and another statement representing the "else"-body. 
+-}
 ifStmt:: [Token] -> (Statement,[Token])
-ifStmt tokens@(x:xs) = let (expr,rest) = getExpr tokens
-            in let (thenBranch,rest') = statement rest
-            in let (elseBranch,rest'') = getElse rest'
-            in (IfStmt{condition=expr,thenBranch=thenBranch,elseBranch =elseBranch},rest'')
+ifStmt tokens@(x:xs) = 
+  (IfStmt{condition=expr,thenBranch=thenBranch,elseBranch=elseBranch},elseRest)
   where
+    (expr,exprRest) = getExpr tokens
+    (thenBranch,thenRest) = statement exprRest
+    (elseBranch,elseRest) = getElse thenRest
     getExpr :: [Token] -> (Expression,[Token])
     getExpr(x:xs) = if x `match` [LEFT_PAREN]
       then let (expr,first:rest) = expression xs
@@ -157,20 +179,28 @@ ifStmt tokens@(x:xs) = let (expr,rest) = getExpr tokens
     getElse (first:xs) = if first `match` [ELSE]
       then let (stmt,rest) = statement xs in (Just stmt,rest)
       else (Nothing,first:xs)
-
+{-
+  Function for parsing a print-statement. 
+  A print-statement is a expression representing what is to 
+  be printed, followed by ";".
+-}
 printStmt:: [Token] -> (Statement,[Token])
-printStmt x = let (printexpr,first:rest) = expression x
+printStmt tokens@(x:xs)= let (printexpr,first:rest) = expression tokens
     in if first `match` [SEMICOLON]
       then (PrintStmt printexpr,rest)
-      else loxError "Error in function PrintStmt. Expected ';' after value" first
-
+      else loxError "Error in function PrintStmt. Expected ';' after value" x
+{-
+  Function for parsing a while-statement. 
+  A while-statement is a expression as condition inbetween "()"
+  followed by a body made up of a statement.
+-}
 whileStmt :: [Token] ->(Statement,[Token])
 whileStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
     then let (expr,first:rest) = expression xs
       in if first `match` [RIGHT_PAREN]
         then let (stmt, rest') = statement rest
           in (WhileStmt{condition=expr,body=stmt},rest')
-        else loxError "Error in function WhileStmt. Expected ')' after condition" first
+        else loxError "Error in function WhileStmt. Expected ')' after condition" x
     else loxError "Error in function WhileStmt. Expected '(' after 'while'" x
 {-
   Function for parsing block statements.
@@ -191,21 +221,26 @@ blockStmt token = let (declarations,first:rest) = getDeclarations token
       then let (firstdec,rest') = declaration tokens in
         let(restOfDec,rest'') = getDeclarations rest' in (firstdec:restOfDec,rest'')
       else ([],tokens)
-
+{-
+  Function for parsing a expression-statement. 
+  A expression statement is an expression followed by ";".
+-}
 exprStmt :: [Token] -> (Statement,[Token])
 exprStmt x = let (expr,first:rest) = expression x
       in if first `match` [SEMICOLON]
       then (ExpressionStmt expr,rest)
       else loxError "Error in function ExprStmt. Expected ';' after expression" (head x)
-
+{-
+  Function for parsing expressions. 
+  An expression is a assignment. 
+-}
 expression :: [Token] -> (Expression,[Token])
 expression = assignment
-
 {-
   Function for parsing assignment expressions.
   A assignment expression is either an assignment or a logic-or-expression.
   
-  Assigment is a identifiertoken, a Variable, followed by a '=' and a value 
+  Assigment is a identifiertoken (Variable) followed by a '=' and a value 
   of type expression. Throws error if left hand side is not a Variable, and 
   therefore not a valid assignmenttarget. 
   
@@ -309,12 +344,23 @@ logicalCheck (x:xs) leftExpr tokenMatches exprType =
           in logicalCheck rest' Logical{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
     else (leftExpr,x:xs)
 
+{-
+  Function for parsing unary-expression as a Unary expression.
+  A unary-expression is a "!" or "-" followed by
+  another unary-expression.
+  If next token does not match "!" or "-" it must be a primary expression instead.
+-}
 unary :: [Token] -> (Expression,[Token])
-unary (x:xs) = if x `match` [BANG,MINUS]
+unary tokens@(x:xs) = if x `match` [BANG,MINUS]
   then let (unaryExpr,rest) = unary xs
         in (Unary{operator = x, right= unaryExpr}, rest)
-  else primary (x:xs)
-
+  else primary tokens
+{-
+  Function for parsing primary-expressions.
+  A primary-expression could be false,true,nil, number,string (as Literals),
+  identifers (Variable) or blocks of code (Grouping).
+  If next token does not match any of these it's considered to be an unexpected token.
+-}
 primary :: [Token] ->(Expression,[Token])
 primary (x:xs) = case getTokenType x of
   FALSE -> saveTokenLiteral

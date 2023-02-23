@@ -26,11 +26,12 @@ if ( a < 5 ) { print g; 88; }else
       }}
 while (hej=2){hej = "eeje";}
 
-for (var b = 1; a < 10000; b = temp + b) {
+//for (;;)  ska också funka. 
+for (var b = 1; a < 10000; b = temp + b){
   print a;
   temp = a;
   a = b;
 }
 //func(2);
 5*2;
-2=3;
+hej =3;
