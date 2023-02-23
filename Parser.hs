@@ -54,7 +54,10 @@ instance Show Expression where
   show (Variable t) = getIdentifierName t
   show (Assign name val) = getIdentifierName name ++ " = "++ show val
   show (Binary left op right) = "(" ++ show left ++ getOperator op ++ show right ++ ")"
-  show (Call callee _ args) = show callee ++"(" ++ concatMap getParamString args ++ ")"
+  show (Call callee _ args) = show callee ++"(" ++
+    if null args
+      then ")"
+      else show (head args) ++ concatMap getParamString (tail args) ++ ")"
     where
       getParamString:: Expression -> [Char]
       getParamString x = "," ++ show x
@@ -372,14 +375,19 @@ logicalCheck (x:xs) leftExpr tokenMatches exprType =
   Function for parsing unary-expression as a Unary expression.
   A unary-expression is a "!" or "-" followed by
   another unary-expression.
-  If next token does not match "!" or "-" it must be a primary expression instead.
+  If next token does not match "!" or "-" it is a call or primary expression instead.
 -}
 unary :: [Token] -> (Expression,[Token])
 unary tokens@(x:xs) = if x `match` [BANG,MINUS]
   then let (unaryExpr,rest) = unary xs
         in (Unary{operator = x, right= unaryExpr}, rest)
   else call tokens
-
+{-
+  Function for parsing function call-expression as a Call expression.
+  A call-expression is a primary expression followed by '(' with zero or at most
+  255 parameters separated by ',' followed by a closing ')'. 
+  If next token after primary not match "(" it must be a simple primary expression instead.
+-}
 call :: [Token] -> (Expression,[Token])
 call tokens@(x:xs) = checkForFuncCall primaryexpr rest
   where
@@ -396,15 +404,16 @@ call tokens@(x:xs) = checkForFuncCall primaryexpr rest
       | otherwise = loxError "Error in function call. Expected ')' after arguments" parenT
       where
           (firstArg, firstArgRest) = expression (x:xs)
-          (restArgs, f:restArgsRest) = getArguments firstArgRest
-    getArguments :: [Token] -> ([Expression],[Token])
-    getArguments tokens@(x:xs) = if x `match` [COMMA]
-      then (firstexpr:restOfExpr,restRest)
-      else ([],tokens)
+          (restArgs, f:restArgsRest) = getArguments firstArgRest 1
+    getArguments :: [Token] -> Int -> ([Expression],[Token])
+    getArguments tokens@(x:xs) nrOfParams
+      | nrOfParams >= 255 = loxError "Error in function call. Can't have more than 255 arguments" x
+      | x `match` [COMMA] = (firstexpr:restOfExpr,restRest)
+      | otherwise = ([],tokens)
       where
-        (firstexpr,firstRest) = expression xs
-        (restOfExpr,restRest) = getArguments firstRest
--- Call {callee::Expression,paren::Token,arguments::[Expression]}
+          (firstexpr, firstRest) = expression xs
+          (restOfExpr, restRest) = getArguments firstRest (nrOfParams + 1)
+
 {-
   Function for parsing primary-expressions.
   A primary-expression could be false,true,nil, number,string (as Literals),
