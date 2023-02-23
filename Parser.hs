@@ -1,12 +1,12 @@
 module Parser (parse) where
 import Tokens
 import Data.Maybe (isNothing, fromJust)
+import Data.List (intersperse)
 {-|
     Author: Emmy Lindgren
     id19eln
     Date: 2023-02-XX
 -}
-
 data Program = PROGRAM [Declaration]
 instance Show Program where
     show (PROGRAM decs) = (show $ length decs) ++ "\n" ++ (unlines $ map show decs)
@@ -31,7 +31,7 @@ instance Show Statement where
   show (IfStmt cond thenBranch elseBranch) = "if(" ++show cond ++") "
     ++ show thenBranch ++ if isNothing elseBranch
       then ""
-      else "else " ++ show (fromJust elseBranch)
+      else " else " ++ show (fromJust elseBranch)
   show (PrintStmt e) = "print " ++ show e ++ ";"
   show (WhileStmt cond body) = "while(" ++ show cond ++ ")" ++ show body
   show (BlockStmt declarations) = "{" ++ concatMap show declarations ++ "}"
@@ -181,7 +181,7 @@ createForLoop body incr cond init = checkInit (checkCond (checkIncr body incr) c
   "else" and another statement representing the "else"-body. 
 -}
 ifStmt:: [Token] -> (Statement,[Token])
-ifStmt tokens@(x:xs) = 
+ifStmt tokens@(x:xs) =
   (IfStmt{condition=expr,thenBranch=thenBranch,elseBranch=elseBranch},elseRest)
   where
     (expr,exprRest) = getExpr tokens
