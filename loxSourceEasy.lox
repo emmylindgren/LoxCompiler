@@ -38,4 +38,7 @@ hej =3;
 functy();
 func(3)()();
 funxy(6.7,7,8);
+fun funcy (ida,ben){7;}
+fun funky(){}
+//true; 5; 5*2;
 //funxy(3,4);

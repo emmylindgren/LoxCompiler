@@ -13,12 +13,21 @@ instance Show Program where
 
 data Declaration = VarDec{name::Token,initializer::Maybe Expression}
                   | Statement Statement
+                  | FuncDec{name::Token, params::[Token], funcbody::[Declaration]}
 instance Show Declaration where
   show (VarDec name init) = "V DEC -> " ++ getIdentifierName name ++
     if isNothing init
       then ";"
       else  "=" ++ show (fromJust init) ++ ";"
   show (Statement s) = show s
+  show (FuncDec name params body) ="F DEC -> "++ getIdentifierName name ++ "("++ parameterString ++ 
+    "{" ++ concatMap show body ++ "}" 
+    where
+      parameterString = if null params
+      then ")"
+      else getIdentifierName (head params) ++ concatMap getParamString (tail params) ++ ")"
+      getParamString:: Token -> [Char]
+      getParamString x = "," ++ getIdentifierName x
 
 data Statement = ExpressionStmt Expression
                 | IfStmt {condition::Expression, thenBranch::Statement,
@@ -88,6 +97,7 @@ getDeclarations t@(x:xs) = if x `match` [EOF]
 declaration ::[Token] -> (Declaration,[Token])
 declaration tokens@(x:xs) = case getTokenType x of
   VAR -> varDeclaration xs
+  FUN -> functionDeclaration xs
   _ -> let (stmt,rest) = statement tokens in (Statement stmt,rest)
 {-
   Function for parsing a variable declaration. 
@@ -108,6 +118,33 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
       then let (expr, rest') = expression rest
         in (Just expr,rest')
       else (Nothing, t)
+
+
+functionDeclaration :: [Token] -> (Declaration,[Token])
+functionDeclaration tokens@(first:second:xs)
+  | not (first `match` [IDENTIFIER]) = loxError "Error in function functionDeclaration. Expected function name" first
+  | not (second `match` [LEFT_PAREN]) = loxError "Error in function functionDeclaration. Expected '(' after function name" first
+  | otherwise = (FuncDec{name=first, params = parameters,funcbody= funcBodyBlock},bodyRest)
+  where
+    (parameters,paramRest) = getParameters xs
+    (funcBodyBlock,bodyRest) = getFunctionBody paramRest
+    getParameters :: [Token] -> ([Token],[Token])
+    getParameters tokens@(x:xs) = if x `match` [RIGHT_PAREN]
+      then ([],xs)
+      else let(params,first:rest) = collectParams tokens 0
+        in if first `match` [RIGHT_PAREN]
+          then (params,rest)
+          else loxError "Error in function functionDeclaration. Expected ')' after parameters" first
+    collectParams :: [Token] -> Int -> ([Token],[Token])
+    collectParams tokens@(x:x2:xs) nrOf
+      | nrOf  >= 255 = loxError "Error in function functionDeclaration. Can't have more than 255 parameters" x
+      | x `match` [IDENTIFIER] && x2 `match` [COMMA] = let (p,rest) = collectParams xs (nrOf+1) in (x:p,rest)
+      | x `match` [IDENTIFIER] = ([x],x2:xs)
+      | otherwise = loxError "Error in function functionDeclaration. Expected parameter name" x
+    getFunctionBody :: [Token] -> ([Declaration],[Token])
+    getFunctionBody tokens@(x:xs)
+      | not (x `match` [LEFT_BRACE]) = loxError "Error in function functionDeclaration. Expected '{' before function body" x
+      | otherwise = block xs
 {-
   Function for parsing a statement. 
   A statement is a for-, if-, print-, while-, block- or 
@@ -119,7 +156,8 @@ statement tokens@(x:xs) = case getTokenType x of
   IF -> ifStmt xs
   PRINT -> printStmt xs
   WHILE -> whileStmt xs
-  LEFT_BRACE -> blockStmt xs
+  LEFT_BRACE -> let (b,rest) = block xs
+              in (BlockStmt b,rest)
   _ -> exprStmt tokens
 {-
   Function for parsing a for-statement. 
@@ -230,17 +268,17 @@ whileStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
         else loxError "Error in function WhileStmt. Expected ')' after condition" x
     else loxError "Error in function WhileStmt. Expected '(' after 'while'" x
 {-
-  Function for parsing block statements.
+  Function for parsing a block to make a block statement.
   A block statement is a list of declarations followed by a }. 
   It takes one argument: [Token] (the tokens to be parsed).
 
-  Returns a tuple containing the block statement (with declarations nested) and 
+  Returns a tuple containing the the list of declarations and 
   the rest of the tokenlist. 
 -}
-blockStmt :: [Token] -> (Statement,[Token])
-blockStmt token = let (declarations,first:rest) = getDeclarations token
+block :: [Token] -> ([Declaration],[Token])
+block token = let (declarations,first:rest) = getDeclarations token
           in if first `match` [RIGHT_BRACE]
-            then (BlockStmt declarations,rest)
+            then (declarations,rest)
             else loxError "Error in function BlockStmt. Expected '}' after block" first
   where
     getDeclarations :: [Token] -> ([Declaration],[Token])
