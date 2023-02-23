@@ -1,7 +1,6 @@
 module Parser (parse) where
 import Tokens
 import Data.Maybe (isNothing, fromJust)
-
 {-|
     Author: Emmy Lindgren
     id19eln
@@ -56,21 +55,38 @@ instance Show Expression where
   show (Binary left op right) = "(" ++ show left ++ getOperator op ++ show right ++ ")"
   show (Grouping expr) = "(" ++ show expr ++ ")"
 
+{-
+  Function for parsing a list of tokens to a Program. 
+  A program is a list of declarations.
+-}
 parse :: [Token] -> Program
 parse tokens = let decs = getDeclarations tokens
       in PROGRAM decs
-
+{-
+  Function for parsing declarations from a list of tokens. 
+  If first token in list is "EOF" then there are no tokens to parse declarations
+  from. Otherwise a declaration is fetched using the list and appended to the head 
+  of the list of the rest declarations.
+-}
 getDeclarations :: [Token] -> [Declaration]
 getDeclarations t@(x:xs) = if x `match` [EOF]
   then []
   else let (declarationStmt,rest) = declaration t
     in declarationStmt : getDeclarations rest
-
+{-
+  Function for parsing a declaration. 
+  A declaration is either a variable declaration or a statement.
+-}
 declaration ::[Token] -> (Declaration,[Token])
 declaration tokens@(x:xs) = case getTokenType x of
   VAR -> varDeclaration xs
   _ -> let (stmt,rest) = statement tokens in (Statement stmt,rest)
-
+{-
+  Function for parsing a variable declaration. 
+  A variable declaration is a identifier-token optionally followed 
+  by "=" and a initializer. If no initializer is added then it is set to nothing.
+  A variable declaration must be followed by a ";".
+-}
 varDeclaration :: [Token] -> (Declaration,[Token])
 varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
   then let (init,first:rest) = getInitializer xs
@@ -84,7 +100,11 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
       then let (expr, rest') = expression rest
         in (Just expr,rest')
       else (Nothing, t)
- 
+{-
+  Function for parsing a statement. 
+  A statement is a for-, if-, print-, while-, block- or 
+  expression statement. 
+-}
 statement :: [Token] -> (Statement,[Token])
 statement tokens@(x:xs) = case getTokenType x of
   FOR -> forStmt xs
@@ -93,7 +113,6 @@ statement tokens@(x:xs) = case getTokenType x of
   WHILE -> whileStmt xs
   LEFT_BRACE -> blockStmt xs
   _ -> exprStmt tokens
-
 {-
   Function for parsing a for-statement. 
   A for-statement is a initializer, a stopcondition and a increment all 
