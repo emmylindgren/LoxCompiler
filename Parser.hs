@@ -5,7 +5,7 @@ import Data.List (intersperse)
 {-|
     Author: Emmy Lindgren
     id19eln
-    Date: 2023-02-XX
+    Date: 2023-02-24
 -}
 data Program = PROGRAM [Declaration]
 instance Show Program where
@@ -81,19 +81,19 @@ instance Show Expression where
   A program is a list of declarations.
 -}
 parse :: [Token] -> Program
-parse tokens = let decs = getDeclarations tokens
-      in PROGRAM decs
+parse tokens = PROGRAM decs
+  where decs = getDeclarations tokens
 {-
   Function for parsing declarations from a list of tokens. 
   If first token in list is "EOF" then there are no tokens to parse declarations
   from. Otherwise a declaration is fetched using the list and appended to the head 
-  of the list of the rest declarations.
+  of the list with the rest of the declarations.
 -}
 getDeclarations :: [Token] -> [Declaration]
-getDeclarations t@(x:xs) = if x `match` [EOF]
+getDeclarations t@(x:_) = if x `match` [EOF]
   then []
-  else let (declarationStmt,rest) = declaration t
-    in declarationStmt : getDeclarations rest
+  else declarationStmt : getDeclarations rest
+  where (declarationStmt,rest) = declaration t
 {-
   Function for parsing a declaration. 
   A declaration is either a variable declaration, function declaration or a statement.
@@ -102,7 +102,8 @@ declaration ::[Token] -> (Declaration,[Token])
 declaration tokens@(x:xs) = case getTokenType x of
   VAR -> varDeclaration xs
   FUN -> functionDeclaration xs
-  _ -> let (stmt,rest) = statement tokens in (Statement stmt,rest)
+  _ -> (Statement stmt,rest)
+  where (stmt,rest) = statement tokens
 {-
   Function for parsing a variable declaration. 
   A variable declaration is a identifier-token optionally followed 
@@ -111,22 +112,21 @@ declaration tokens@(x:xs) = case getTokenType x of
 -}
 varDeclaration :: [Token] -> (Declaration,[Token])
 varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
-  then let (init,first:rest) = getInitializer xs
-    in if first `match` [SEMICOLON]
+  then if first `match` [SEMICOLON]
       then (VarDec{name = x, initializer = init}, rest)
       else loxError "VarDeclaration" "Expected ';' after variable declaration" x
   else loxError "VarDeclaration" "Expected variable name" x
   where
+    (init,first:rest) = getInitializer xs
     getInitializer :: [Token] -> (Maybe Expression,[Token])
     getInitializer t@(first:rest) = if first `match` [EQUAL]
       then let (expr, rest') = expression rest
         in (Just expr,rest')
       else (Nothing, t)
-
 {-
   Function for parsing a function declaration. 
   A function is the function name (Identifier-token), followed by '()' optionally filled
-  with parameters separated with ','. Followed by a block ([Declaration]) containing the 
+  with parameters (Tokens) separated with ','. Followed by a block ([Declaration]) containing the 
   function-body. 
 -}
 functionDeclaration :: [Token] -> (Declaration,[Token])
@@ -268,7 +268,7 @@ printStmt tokens@(x:xs)= let (printexpr,first:rest) = expression tokens
 {-
   Function for parsing a return-statement. 
   A return-statement the fun-keyword optionally followed by an expression as a value 
-  to return. Always ends with ';'.
+  to return. Always have to end with ';'.
 -}
 returnStmt :: [Token] -> (Statement,[Token])
 returnStmt tokens@(returnToken:second:xs)
@@ -293,17 +293,13 @@ whileStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
 {-
   Function for parsing a block to make a block statement.
   A block statement is a list of declarations followed by a }. 
-  It takes one argument: [Token] (the tokens to be parsed).
-
-  Returns a tuple containing the the list of declarations and 
-  the rest of the tokenlist. 
 -}
 block :: [Token] -> ([Declaration],[Token])
-block token = let (declarations,first:rest) = getDeclarations token
-          in if first `match` [RIGHT_BRACE]
+block token = if first `match` [RIGHT_BRACE]
             then (declarations,rest)
             else loxError "BlockStmt" "Expected '}' after block" first
   where
+    (declarations,first:rest) = getDeclarations token
     getDeclarations :: [Token] -> ([Declaration],[Token])
     getDeclarations tokens@(x:xs) = if not (x `match` [RIGHT_BRACE] || x `match` [EOF])
       then let (firstdec,rest') = declaration tokens in
@@ -314,10 +310,11 @@ block token = let (declarations,first:rest) = getDeclarations token
   A expression statement is an expression followed by ";".
 -}
 exprStmt :: [Token] -> (Statement,[Token])
-exprStmt x = let (expr,first:rest) = expression x
-      in if first `match` [SEMICOLON]
+exprStmt x = if first `match` [SEMICOLON]
       then (ExpressionStmt expr,rest)
       else loxError "ExprStmt" "Expected ';' after expression" (head x)
+      where 
+          (expr,first:rest) = expression x
 {-
   Function for parsing expressions. 
   An expression is a assignment. 
@@ -336,14 +333,14 @@ expression = assignment
   orExpr to make a logic-or-expression. 
 -}
 assignment:: [Token] -> (Expression,[Token])
-assignment t = let (expr,first:rest) = orExpr t
-            in if first `match` [EQUAL]
-              then let(val,rest') = assignment rest
-              in if checkifVariable expr
-                then (Assign{varAssignname = varname expr, value = val}, rest')
-                else loxError "Assigment" "Invalid assignment target" first
-            else (expr,first:rest)
+assignment t = if first `match` [EQUAL]
+          then if checkifVariable expr
+              then (Assign{varAssignname = varname expr, value = val}, rest')
+              else loxError "Assigment" "Invalid assignment target" first
+          else (expr,first:rest)
     where
+      (expr,first:rest) = orExpr t
+      (val,rest') = assignment rest
       checkifVariable :: Expression -> Bool
       checkifVariable (Variable _) = True
       checkifVariable _ = False
@@ -353,48 +350,54 @@ assignment t = let (expr,first:rest) = orExpr t
   zero or more "or" each followed another logic-and-expression.
 -}
 orExpr ::[Token] -> (Expression,[Token])
-orExpr x = let (orExpr,rest) = andExpr x
-            in logicalCheck rest orExpr [OR] andExpr
+orExpr x = logicalCheck rest orExpr [OR] andExpr
+  where 
+    (orExpr,rest) = andExpr x
 {-
   Function for parsing logic-and-expression as a logical expression.
   A logic-and-expression is a equality-expression followed by
   zero or more "and" each followed another equality-expression.
 -}
 andExpr ::[Token] -> (Expression,[Token])
-andExpr x = let (orExpr,rest) = equality x
-            in logicalCheck rest orExpr [AND] equality
+andExpr x = logicalCheck rest eqExpr [AND] equality
+  where
+    (eqExpr,rest) = equality x
 {-
   Function for parsing equality-expression as a binary expression.
   A equality-expression is a comparison-expression followed by
   zero or more "!=" or "==" each followed by another comparison-expression.
 -}
 equality :: [Token] -> (Expression,[Token])
-equality x = let (equalityExpr,rest) = comparison x
-              in binaryCheck rest equalityExpr [BANG_EQUAL,EQUAL_EQUAL] comparison
+equality x = binaryCheck rest equalityExpr [BANG_EQUAL,EQUAL_EQUAL] comparison
+  where 
+    (equalityExpr,rest) = comparison x
 {-
   Function for parsing comparison-expression as a binary expression.
   A comparison-expression is a term-expression followed by
   zero or more ">",">=","<" or "<=" each followed by another term-expression.
 -}
 comparison :: [Token] -> (Expression,[Token])
-comparison x = let (comparisonExpr,rest) = term x
-                in binaryCheck rest comparisonExpr [GREATER,GREATER_EQUAL,LESS,LESS_EQUAL] term
+comparison x = binaryCheck rest comparisonExpr [GREATER,GREATER_EQUAL,LESS,LESS_EQUAL] term
+  where 
+    (comparisonExpr,rest) = term x
 {-
   Function for parsing term-expression as a binary expression.
   A term-expression is a factor-expression followed by
   zero or more "-" or "+" each followed by another factor-expression.
 -}
 term :: [Token] -> (Expression,[Token])
-term x = let (factorExpr,rest) = factor x
-          in binaryCheck rest factorExpr [MINUS,PLUS] factor
+term x = binaryCheck rest factorExpr [MINUS,PLUS] factor
+  where 
+    (factorExpr,rest) = factor x
 {-
   Function for parsing factor-expression as a binary expression.
   A term-expression is a unary-expression followed by
   zero or more "/" or "*" each followed by another unary-expression.
 -}
 factor :: [Token] -> (Expression,[Token])
-factor x = let (unaryExpr,rest) = unary x
-            in binaryCheck rest unaryExpr [SLASH,STAR] unary
+factor x = binaryCheck rest unaryExpr [SLASH,STAR] unary
+  where 
+    (unaryExpr,rest) = unary x
 {-
   Helperfunction to look for and if found parse one or several binary expressions. 
   It takes four arguments: 
@@ -410,9 +413,10 @@ binaryCheck ::[Token] -> Expression -> [TokenType] -> ([Token] -> (Expression,[T
               -> (Expression,[Token])
 binaryCheck (x:xs) leftExpr tokenMatches exprType =
   if x `match` tokenMatches
-    then let (rightExpr,rest') = exprType xs
-          in binaryCheck rest' Binary{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
+    then binaryCheck rest' Binary{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
     else (leftExpr,x:xs)
+  where 
+    (rightExpr,rest') = exprType xs
 {-
   Helperfunction to look for and if found parse one or several logical expressions. 
   It takes four arguments: 
@@ -428,9 +432,10 @@ logicalCheck ::[Token] -> Expression -> [TokenType] -> ([Token] -> (Expression,[
               -> (Expression,[Token])
 logicalCheck (x:xs) leftExpr tokenMatches exprType =
   if x `match` tokenMatches
-    then let (rightExpr,rest') = exprType xs
-          in logicalCheck rest' Logical{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
+    then logicalCheck rest' Logical{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
     else (leftExpr,x:xs)
+  where 
+    (rightExpr,rest') = exprType xs
 {-
   Function for parsing unary-expression as a Unary expression.
   A unary-expression is a "!" or "-" followed by
@@ -439,9 +444,10 @@ logicalCheck (x:xs) leftExpr tokenMatches exprType =
 -}
 unary :: [Token] -> (Expression,[Token])
 unary tokens@(x:xs) = if x `match` [BANG,MINUS]
-  then let (unaryExpr,rest) = unary xs
-        in (Unary{operator = x, right= unaryExpr}, rest)
+  then (Unary{operator = x, right= unaryExpr}, rest)
   else call tokens
+  where 
+    (unaryExpr,rest) = unary xs
 {-
   Function for parsing function call-expression as a Call expression.
   A call-expression is a primary expression followed by '(' with zero or at most
@@ -473,7 +479,6 @@ call tokens@(x:xs) = checkForFuncCall primaryexpr rest
       where
           (firstexpr, firstRest) = expression xs
           (restOfExpr, restRest) = getArguments firstRest (nrOfParams + 1)
-
 {-
   Function for parsing primary-expressions.
   A primary-expression could be false,true,nil, number,string (as Literals),
@@ -492,7 +497,7 @@ primary (x:xs) = case getTokenType x of
       in if first `match` [RIGHT_PAREN]
         then (Grouping expr, rest)
         else loxError "Primary"  "Expected ')' after grouping on line " first
-  _ -> loxError "Primary" ("Unexpected token"  ++ show (getTokenType x)) x
+  _ -> loxError "Primary" ("Unexpected token "  ++ show (getTokenType x)) x
   where
     saveTokenLiteral = (Literal (getTokenLiteral x), xs)
 

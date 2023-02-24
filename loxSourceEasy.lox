@@ -1,6 +1,11 @@
+// Testat tom fil 
 //true and false;
 //-2.0;
 !true;
+!7;
+true and false;
+true or 3;
+4==true;
 (2==3);
 //2+3*5;
 //true; 5; 5*2;
@@ -10,6 +15,10 @@ if ( a < 5 ) { print g; 88; } else { if (false) { while (a=5) print "hrj";}}
 //var c=(2/7);
 //var str     = "hello";
 //var falseeee  = false;
+// var ;
+// var empty
+// var hej = ; //ger unexpected token
+//4 = "hej"; // ger invalid assignment target
 var empty;
 var hej = "hej";
 hej = "hejdå";
@@ -53,3 +62,5 @@ fun funcy() {
 for (var i = 0; i < 20; i = i + 1) {
   print fib(i);
 }
+fun func(a,b,c) { 5; return c; }
+if ( a < 5 ) { print g; 88; } else { if (false) { while (a=5) return; } }
