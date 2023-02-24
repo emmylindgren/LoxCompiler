@@ -1,22 +1,14 @@
+// Testat alla tester som finns i uppgiftsbeskrivning.
 // Testat tom fil 
-//true and false;
-//-2.0;
 !true;
 !7;
 true and false;
 true or 3;
 4==true;
 (2==3);
-//2+3*5;
-//true; 5; 5*2;
 if ( a < 5 ) { print g; 88; } else { if (false) { while (a=5) print "hrj";}}
+if(a == 4) {if (3==4){return;} else return 4;} else 5; // kollar så else-satser blir rätt
 
-//var a = 5;
-//var c=(2/7);
-//var str     = "hello";
-//var falseeee  = false;
-// var ;
-// var empty
 // var hej = ; //ger unexpected token
 //4 = "hej"; // ger invalid assignment target
 var empty;
@@ -30,30 +22,26 @@ print "hejdå";
 if ( a < 5 ) { print g; 88; }else 
 { if (false) {
      var hej = "HEJA";
-      }}
+      }
+}
 while (hej=2){hej = "eeje";}
 
-//for (;;)  ska också funka. 
+for(;;){print "hej";}
 for (var b = 1; a < 10000; b = temp + b){
   print a;
   temp = a;
   a = b;
 }
-//func(2);
-5*2;
-hej =3;
+print add5(100);
 functy();
 func(3)()();
 funxy(6.7,7,8);
+func(3,4);
 func(2)(3);
 fun funcy (hej,di){7; hej;}
 fun funky(){return;}
-//true; 5; 5*2;
 //funxy(3,4);
-//fun fib(,) { // fun hej,hej) // fun() // fun fun()// fun hej(hej,jaha
-//  if (n <= 1) return n;
-//  return fib(n - 2) + fib(n - 1);
-//}
+//fun fib(,) { // fun hej,hej) // fun() // fun fun()// fun hej(hej,jaha // alla ska kasta fel. 
 fun funcy() {
   if (n <= 1) return n;
   return fib(n - 2) + fib(n - 1);
