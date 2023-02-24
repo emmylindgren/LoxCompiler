@@ -1,7 +1,6 @@
 module Parser (parse) where
 import Tokens
 import Data.Maybe (isNothing, fromJust)
-import Data.List (intersperse)
 {-|
     Author: Emmy Lindgren
     id19eln
