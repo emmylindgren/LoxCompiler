@@ -4,8 +4,7 @@
 (2==3);
 //2+3*5;
 //true; 5; 5*2;
-//nedan funkar ej :) non-exhaustive patterns in case
-//if ( a < 5 ) { print g; 88; } else { if (false) { while (a=5) }}
+if ( a < 5 ) { print g; 88; } else { if (false) { while (a=5) print "hrj";}}
 
 //var a = 5;
 //var c=(2/7);
@@ -18,8 +17,7 @@ if (a) 5*2;
 if (a) 5*2; else 99;
 print "hejdå";
 { 5; 7; 9; }
-//nedan måste nog hanteras? oväntade tokens? Men också
-//bör man väl få ett felmeddelande om man ej hittar ett expr efter while? 
+
 if ( a < 5 ) { print g; 88; }else 
 { if (false) {
      var hej = "HEJA";
@@ -38,7 +36,16 @@ hej =3;
 functy();
 func(3)()();
 funxy(6.7,7,8);
-fun funcy (ida,ben){7;}
-fun funky(){}
+func(2)(3);
+fun funcy (hej,di){7; hej;}
+fun funky(){return;}
 //true; 5; 5*2;
 //funxy(3,4);
+fun fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+for (var i = 0; i < 20; i = i + 1) {
+  print fib(i);
+}

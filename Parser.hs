@@ -24,14 +24,15 @@ instance Show Declaration where
     "{" ++ concatMap show body ++ "}" 
     where
       parameterString = if null params
-      then ")"
-      else getIdentifierName (head params) ++ concatMap getParamString (tail params) ++ ")"
+        then ")"
+        else getIdentifierName (head params) ++ concatMap getParamString (tail params) ++ ")"
       getParamString:: Token -> [Char]
       getParamString x = "," ++ getIdentifierName x
 
 data Statement = ExpressionStmt Expression
                 | IfStmt {condition::Expression, thenBranch::Statement,
                           elseBranch:: Maybe Statement}
+                | ReturnStmt {keyWord::Token,returnValue:: Maybe Expression}
                 | PrintStmt Expression
                 | WhileStmt {condition::Expression, body::Statement}
                 | BlockStmt [Declaration]
@@ -41,6 +42,9 @@ instance Show Statement where
     ++ show thenBranch ++ if isNothing elseBranch
       then ""
       else " else " ++ show (fromJust elseBranch)
+  show (ReturnStmt keyWord returnValue) = "return" ++ if isNothing returnValue
+    then ";"
+    else " " ++ show (fromJust returnValue) ++";"
   show (PrintStmt e) = "print " ++ show e ++ ";"
   show (WhileStmt cond body) = "while(" ++ show cond ++ ")" ++ show body
   show (BlockStmt declarations) = "{" ++ concatMap show declarations ++ "}"
@@ -92,7 +96,7 @@ getDeclarations t@(x:xs) = if x `match` [EOF]
     in declarationStmt : getDeclarations rest
 {-
   Function for parsing a declaration. 
-  A declaration is either a variable declaration or a statement.
+  A declaration is either a variable declaration, function declaration or a statement.
 -}
 declaration ::[Token] -> (Declaration,[Token])
 declaration tokens@(x:xs) = case getTokenType x of
@@ -119,7 +123,12 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
         in (Just expr,rest')
       else (Nothing, t)
 
-
+{-
+  Function for parsing a function declaration. 
+  A function is the function name (Identifier-token), followed by '()' optionally filled
+  with parameters separated with ','. Followed by a block ([Declaration]) containing the 
+  function-body. 
+-}
 functionDeclaration :: [Token] -> (Declaration,[Token])
 functionDeclaration tokens@(first:second:xs)
   | not (first `match` [IDENTIFIER]) = loxError "Error in function functionDeclaration. Expected function name" first
@@ -136,11 +145,12 @@ functionDeclaration tokens@(first:second:xs)
           then (params,rest)
           else loxError "Error in function functionDeclaration. Expected ')' after parameters" first
     collectParams :: [Token] -> Int -> ([Token],[Token])
-    collectParams tokens@(x:x2:xs) nrOf
-      | nrOf  >= 255 = loxError "Error in function functionDeclaration. Can't have more than 255 parameters" x
-      | x `match` [IDENTIFIER] && x2 `match` [COMMA] = let (p,rest) = collectParams xs (nrOf+1) in (x:p,rest)
-      | x `match` [IDENTIFIER] = ([x],x2:xs)
-      | otherwise = loxError "Error in function functionDeclaration. Expected parameter name" x
+    collectParams tokens@(first:second:rest) nrOf
+      | nrOf  >= 255 = loxError "Error in function functionDeclaration. Can't have more than 255 parameters" first
+      | first `match` [IDENTIFIER] && second `match` [COMMA] = 
+            let (restOfParams,restRest) = collectParams rest (nrOf+1) in (first:restOfParams,restRest)
+      | first `match` [IDENTIFIER] = ([first],second:rest)
+      | otherwise = loxError "Error in function functionDeclaration. Expected parameter name" first
     getFunctionBody :: [Token] -> ([Declaration],[Token])
     getFunctionBody tokens@(x:xs)
       | not (x `match` [LEFT_BRACE]) = loxError "Error in function functionDeclaration. Expected '{' before function body" x
@@ -155,6 +165,7 @@ statement tokens@(x:xs) = case getTokenType x of
   FOR -> forStmt xs
   IF -> ifStmt xs
   PRINT -> printStmt xs
+  RETURN -> returnStmt tokens
   WHILE -> whileStmt xs
   LEFT_BRACE -> let (b,rest) = block xs
               in (BlockStmt b,rest)
@@ -254,6 +265,18 @@ printStmt tokens@(x:xs)= let (printexpr,first:rest) = expression tokens
     in if first `match` [SEMICOLON]
       then (PrintStmt printexpr,rest)
       else loxError "Error in function PrintStmt. Expected ';' after value" x
+{-
+  Function for parsing a return-statement. 
+  A return-statement the fun-keyword optionally followed by an expression as a value 
+  to return. Always ends with ';'.
+-}
+returnStmt :: [Token] -> (Statement,[Token])
+returnStmt tokens@(returnToken:second:xs)
+  | second `match` [SEMICOLON] = (ReturnStmt{keyWord=returnToken,returnValue=Nothing},xs)
+  | first `match` [SEMICOLON] = (ReturnStmt{keyWord=returnToken,returnValue=Just returnExpr},rest)
+  | otherwise = loxError "Error in function ReturnStmt. Expected ';' after returnvalue" returnToken
+  where 
+    (returnExpr,first:rest) = expression (second:xs)
 {-
   Function for parsing a while-statement. 
   A while-statement is a expression as condition inbetween "()"
@@ -408,12 +431,11 @@ logicalCheck (x:xs) leftExpr tokenMatches exprType =
     then let (rightExpr,rest') = exprType xs
           in logicalCheck rest' Logical{left = leftExpr, operator = x, right = rightExpr} tokenMatches exprType
     else (leftExpr,x:xs)
-
 {-
   Function for parsing unary-expression as a Unary expression.
   A unary-expression is a "!" or "-" followed by
   another unary-expression.
-  If next token does not match "!" or "-" it is a call or primary expression instead.
+  If next token does not match "!" or "-" it must be a call or primary expression instead.
 -}
 unary :: [Token] -> (Expression,[Token])
 unary tokens@(x:xs) = if x `match` [BANG,MINUS]
