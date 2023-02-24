@@ -41,7 +41,11 @@ fun funcy (hej,di){7; hej;}
 fun funky(){return;}
 //true; 5; 5*2;
 //funxy(3,4);
-fun fib(n) {
+//fun fib(,) { // fun hej,hej) // fun() // fun fun()// fun hej(hej,jaha
+//  if (n <= 1) return n;
+//  return fib(n - 2) + fib(n - 1);
+//}
+fun funcy() {
   if (n <= 1) return n;
   return fib(n - 2) + fib(n - 1);
 }

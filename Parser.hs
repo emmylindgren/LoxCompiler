@@ -114,8 +114,8 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
   then let (init,first:rest) = getInitializer xs
     in if first `match` [SEMICOLON]
       then (VarDec{name = x, initializer = init}, rest)
-      else loxError "Error in function varDeclaration. Expected ';' after variable declaration" x
-  else loxError "Error in function varDeclaration. Expected variable name" x
+      else loxError "VarDeclaration" "Expected ';' after variable declaration" x
+  else loxError "VarDeclaration" "Expected variable name" x
   where
     getInitializer :: [Token] -> (Maybe Expression,[Token])
     getInitializer t@(first:rest) = if first `match` [EQUAL]
@@ -131,8 +131,8 @@ varDeclaration tokens@(x:xs) = if x `match` [IDENTIFIER]
 -}
 functionDeclaration :: [Token] -> (Declaration,[Token])
 functionDeclaration tokens@(first:second:xs)
-  | not (first `match` [IDENTIFIER]) = loxError "Error in function functionDeclaration. Expected function name" first
-  | not (second `match` [LEFT_PAREN]) = loxError "Error in function functionDeclaration. Expected '(' after function name" first
+  | not (first `match` [IDENTIFIER]) = loxError "FunctionDeclaration" "Expected function name" first
+  | not (second `match` [LEFT_PAREN]) = loxError "FunctionDeclaration" "Expected '(' after function name" first
   | otherwise = (FuncDec{name=first, params = parameters,funcbody= funcBodyBlock},bodyRest)
   where
     (parameters,paramRest) = getParameters xs
@@ -143,21 +143,21 @@ functionDeclaration tokens@(first:second:xs)
       else let(params,first:rest) = collectParams tokens 0
         in if first `match` [RIGHT_PAREN]
           then (params,rest)
-          else loxError "Error in function functionDeclaration. Expected ')' after parameters" first
+          else loxError "FunctionDeclaration" "Expected ')' after parameters" first
     collectParams :: [Token] -> Int -> ([Token],[Token])
     collectParams tokens@(first:second:rest) nrOf
-      | nrOf  >= 255 = loxError "Error in function functionDeclaration. Can't have more than 255 parameters" first
+      | nrOf  >= 255 = loxError "FunctionDeclaration" "Can't have more than 255 parameters" first
       | first `match` [IDENTIFIER] && second `match` [COMMA] = 
             let (restOfParams,restRest) = collectParams rest (nrOf+1) in (first:restOfParams,restRest)
       | first `match` [IDENTIFIER] = ([first],second:rest)
-      | otherwise = loxError "Error in function functionDeclaration. Expected parameter name" first
+      | otherwise = loxError "FunctionDeclaration" "Expected parameter name" first
     getFunctionBody :: [Token] -> ([Declaration],[Token])
     getFunctionBody tokens@(x:xs)
-      | not (x `match` [LEFT_BRACE]) = loxError "Error in function functionDeclaration. Expected '{' before function body" x
+      | not (x `match` [LEFT_BRACE]) = loxError "FunctionDeclaration" "Expected '{' before function body" x
       | otherwise = block xs
 {-
   Function for parsing a statement. 
-  A statement is a for-, if-, print-, while-, block- or 
+  A statement is a for-, if-, print-,return-, while-, block- or 
   expression statement. 
 -}
 statement :: [Token] -> (Statement,[Token])
@@ -182,7 +182,7 @@ statement tokens@(x:xs) = case getTokenType x of
 forStmt:: [Token] -> (Statement,[Token])
 forStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
   then (createForLoop body incr cond init,bodyRest)
-  else loxError "Error in function ForStmt. Expected '(' after 'for'" x
+  else loxError "ForStmt" "Expected '(' after 'for'" x
   where
     (init,initRest) = getInit xs
     (cond,condRest) = getCond initRest
@@ -199,14 +199,14 @@ forStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
       else let (cond,first:rest) = expression tokens in
         if first `match` [SEMICOLON]
           then (Just cond,rest)
-          else loxError "Error in function ForStmt. Expected ';' after loop condition" first
+          else loxError "ForStmt" "Expected ';' after loop condition" first
     getIncr:: [Token] -> (Maybe Expression,[Token])
     getIncr tokens@(x:xs) = if x `match` [RIGHT_PAREN]
       then (Nothing,xs)
       else let (incr,f:rest) = expression tokens in
         if f `match` [RIGHT_PAREN]
           then (Just incr,rest)
-          else loxError "Error in function ForStmt. Expected ')' after for clauses" f
+          else loxError "ForStmt" "Expected ')' after for clauses" f
 {-
   Helperfunction for creating a for-statement.  
   If there is a initializer then a block is created starting with the initializer expression. 
@@ -249,8 +249,8 @@ ifStmt tokens@(x:xs) =
       then let (expr,first:rest) = expression xs
           in if first `match` [RIGHT_PAREN]
             then (expr,rest)
-            else loxError "Error in function ifStmt. Expected ')' after if condition" first
-      else loxError "Error in function ifStmt. Expected '(' after 'if'" x
+            else loxError "IfStmt" "Expected ')' after if condition" first
+      else loxError "IfStmt" "Expected '(' after 'if'" x
     getElse :: [Token] -> (Maybe Statement,[Token])
     getElse (first:xs) = if first `match` [ELSE]
       then let (stmt,rest) = statement xs in (Just stmt,rest)
@@ -264,7 +264,7 @@ printStmt:: [Token] -> (Statement,[Token])
 printStmt tokens@(x:xs)= let (printexpr,first:rest) = expression tokens
     in if first `match` [SEMICOLON]
       then (PrintStmt printexpr,rest)
-      else loxError "Error in function PrintStmt. Expected ';' after value" x
+      else loxError "PrintStmt" "Expected ';' after value" x
 {-
   Function for parsing a return-statement. 
   A return-statement the fun-keyword optionally followed by an expression as a value 
@@ -274,7 +274,7 @@ returnStmt :: [Token] -> (Statement,[Token])
 returnStmt tokens@(returnToken:second:xs)
   | second `match` [SEMICOLON] = (ReturnStmt{keyWord=returnToken,returnValue=Nothing},xs)
   | first `match` [SEMICOLON] = (ReturnStmt{keyWord=returnToken,returnValue=Just returnExpr},rest)
-  | otherwise = loxError "Error in function ReturnStmt. Expected ';' after returnvalue" returnToken
+  | otherwise = loxError "ReturnStmt" "Expected ';' after returnvalue" returnToken
   where 
     (returnExpr,first:rest) = expression (second:xs)
 {-
@@ -288,8 +288,8 @@ whileStmt tokens@(x:xs) = if x `match` [LEFT_PAREN]
       in if first `match` [RIGHT_PAREN]
         then let (stmt, rest') = statement rest
           in (WhileStmt{condition=expr,body=stmt},rest')
-        else loxError "Error in function WhileStmt. Expected ')' after condition" x
-    else loxError "Error in function WhileStmt. Expected '(' after 'while'" x
+        else loxError "WhileStmt" "Expected ')' after condition" x
+    else loxError "WhileStmt" "Expected '(' after 'while'" x
 {-
   Function for parsing a block to make a block statement.
   A block statement is a list of declarations followed by a }. 
@@ -302,7 +302,7 @@ block :: [Token] -> ([Declaration],[Token])
 block token = let (declarations,first:rest) = getDeclarations token
           in if first `match` [RIGHT_BRACE]
             then (declarations,rest)
-            else loxError "Error in function BlockStmt. Expected '}' after block" first
+            else loxError "BlockStmt" "Expected '}' after block" first
   where
     getDeclarations :: [Token] -> ([Declaration],[Token])
     getDeclarations tokens@(x:xs) = if not (x `match` [RIGHT_BRACE] || x `match` [EOF])
@@ -317,7 +317,7 @@ exprStmt :: [Token] -> (Statement,[Token])
 exprStmt x = let (expr,first:rest) = expression x
       in if first `match` [SEMICOLON]
       then (ExpressionStmt expr,rest)
-      else loxError "Error in function ExprStmt. Expected ';' after expression" (head x)
+      else loxError "ExprStmt" "Expected ';' after expression" (head x)
 {-
   Function for parsing expressions. 
   An expression is a assignment. 
@@ -341,7 +341,7 @@ assignment t = let (expr,first:rest) = orExpr t
               then let(val,rest') = assignment rest
               in if checkifVariable expr
                 then (Assign{varAssignname = varname expr, value = val}, rest')
-                else loxError "Error in function Assigment. Invalid assignment target" first
+                else loxError "Assigment" "Invalid assignment target" first
             else (expr,first:rest)
     where
       checkifVariable :: Expression -> Bool
@@ -461,13 +461,13 @@ call tokens@(x:xs) = checkForFuncCall primaryexpr rest
     finishCall expr (x:xs) parenT
       | x `match` [RIGHT_PAREN] = (Call{callee = expr,paren=parenT,arguments=[]},xs)
       | f `match` [RIGHT_PAREN] = (Call{callee = expr,paren=parenT,arguments=firstArg:restArgs},restArgsRest)
-      | otherwise = loxError "Error in function call. Expected ')' after arguments" parenT
+      | otherwise = loxError "Call" "Expected ')' after arguments" parenT
       where
           (firstArg, firstArgRest) = expression (x:xs)
           (restArgs, f:restArgsRest) = getArguments firstArgRest 1
     getArguments :: [Token] -> Int -> ([Expression],[Token])
     getArguments tokens@(x:xs) nrOfParams
-      | nrOfParams >= 255 = loxError "Error in function call. Can't have more than 255 arguments" x
+      | nrOfParams >= 255 = loxError "Call" "Can't have more than 255 arguments" x
       | x `match` [COMMA] = (firstexpr:restOfExpr,restRest)
       | otherwise = ([],tokens)
       where
@@ -491,8 +491,8 @@ primary (x:xs) = case getTokenType x of
   LEFT_PAREN -> let (expr,first:rest) = expression xs
       in if first `match` [RIGHT_PAREN]
         then (Grouping expr, rest)
-        else loxError "Error in function Primary. Expected ')' after grouping on line " first
-  _ -> loxError ("Error in function Primary. Unexpected token " ++ show (getTokenType x)) x
+        else loxError "Primary"  "Expected ')' after grouping on line " first
+  _ -> loxError "Primary" ("Unexpected token"  ++ show (getTokenType x)) x
   where
     saveTokenLiteral = (Literal (getTokenLiteral x), xs)
 
@@ -535,5 +535,6 @@ getOperator t = case getTokenType t of
   It takes two arguments, one of type [Char] (the string containing error info)
   and one of type 'Token', the token of which threw an error. 
 -}
-loxError :: [Char] -> Token -> error
-loxError string tok = error (string ++ " on line "++ show (getTokenLine tok))
+loxError :: [Char] -> [Char] -> Token -> error
+loxError funcName string tok = error ("Error in function "++ funcName ++". "++ string ++
+   " on line "++ show (getTokenLine tok))
