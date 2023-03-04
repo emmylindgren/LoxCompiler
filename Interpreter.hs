@@ -4,71 +4,96 @@ import Data.Maybe (isNothing, fromJust)
 import Tokens
 
 data Enviroment = ENVIROMENT{variables::[(String,String)], enclosing::Maybe Enviroment}
---vad ska den returnera? Helst inget va? haha 
-interpret :: Program -> String
-interpret (PROGRAM (x:xs)) = show x
---något sådant? = execute x : execute xs
+data Value = N Float | S String | B Bool | Null
+    deriving (Show,Eq)
 
---In Lox, values are created by literals, computed by expressions, and stored in variables
---Eventuell lösning är väl att man skapar en datatyp som kan va antingen 
--- nummer(float), sträng, boolean eller Nothing typ? 
--- då skulle man ju också kunna göra "typecheck" där 
---typ  enligt nedan. Skulle behövt bättre namn men eftersom jag importerar tokens 
--- så finns redan num,number, string str osv där. 
-data LoxObject = N Float | S String | B Bool | Null
-    deriving Show
+interpret :: Program -> [String]
+interpret (PROGRAM (x:xs)) = [show x]
+--något sådant? = execute x : execute xs
 
 --evaluate ska utvärdera ett expression verkar de som.
 -- återigen, returntyp? Kan inte vara olika.  
 -- Det är ju typ sträng men det känns verkligen inte säkert. 
-evaluate :: Expression -> LoxObject
-evaluate h@(Literal l) = visitLiteralExpr h
+-- i javakoden enligt: 
+--   private Object evaluate(Expr expr) {
+ --   return expr.accept(this);
+--  } och accept va ju som en switchsats vilekn de är. 
+evaluate :: Expression -> Value
+evaluate expr@(Literal l) = visitLiteralExpr expr
 --evaluate (Grouping e) = visitGroupingExpr
 
 --Medan execute ska utvärdera statements. Känns som han dock har statements ist för declarations?
 -- kolla upp detta. 
-
---- visitLiteralExpr ---
---Använder just nu loxobject datatypen för att representera de olika de kan bli
-visitLiteralExpr :: Expression -> LoxObject
-visitLiteralExpr (Literal l) = case l of 
+visitLiteralExpr :: Expression -> Value
+visitLiteralExpr (Literal l) = case l of
     NUM n -> N n
     STR s -> S s
     ID s -> S s
     FALSE_LIT -> B False
-    TRUE_LIT -> B True 
+    TRUE_LIT -> B True
     NIL_LIT -> Null
 
---- visitGroupingExpr --- 
---frågetecken på returvärdet även här. 
-{-
-visit
-visitGroupingExpr (Grouping e) = evaluate e 
--}
+visitGroupingExpr :: Expression -> Value
+visitGroupingExpr (Grouping e) = evaluate e
 
-
---- visitUnaryExp ---
-{-
-visitUnaryExpr (Unary op right) = case getTokenType op of 
-    MINUS -> -rightVal 
-    BANG -> not isTruthy right
-    where 
+visitUnaryExpr :: Expression -> Value
+visitUnaryExpr (Unary op right) = case getTokenType op of
+    MINUS -> N (-rightValNum)
+    BANG -> B (not $ isTruthy rightVal)
+    where
         rightVal = evaluate right
--}
---isTruthy måste göras också
--- om det är Nothing vi får (null) så falskt, om de
--- är boolean skicka tillbaka den boolean annars skickar vi sant. Den ska 
--- returnera en bool men vad ska den få in? Kan ju vara vad som helst.Loxobject? 
+        rightValNum = getNumberOperand rightVal "visitUnaryExpr" op
+        isTruthy :: Value -> Bool
+        isTruthy v = case v of
+            Null -> False
+            B bool -> bool
+            _ -> True
 
---nedan saknar en hel del operator alternativ. Kommer kunna returnera 
--- siffra, sträng eller boolean. Måste kontrollera så vi får in nummer och så 
---vidare! 
-{-
-visitBinary (Binary left op right) = case getTokenType op of 
-    MINUS -> N (leftVal - rightVal)
-    SLASH -> N (leftVal / rightVal)
-    STAR -> N (leftVal * rightVal)
-    where 
-        leftVal = evaluate left 
+visitBinary :: Expression -> Value
+visitBinary (Binary left op right) = case getTokenType op of
+    GREATER -> B (leftValNum > rightValNum)
+    GREATER_EQUAL -> B (leftValNum >= rightValNum)
+    LESS -> B (leftValNum < rightValNum)
+    LESS_EQUAL -> B (leftValNum <= rightValNum)
+    BANG_EQUAL -> B (leftVal /= rightVal)
+    EQUAL_EQUAL -> B (leftVal == rightVal)
+    MINUS -> N (leftValNum - rightValNum)
+    SLASH -> N (leftValNum / rightValNum)
+    STAR -> N (leftValNum * rightValNum)
+    PLUS -> if leftVal `isInstanceOf` "NUM" && rightVal `isInstanceOf` "NUM"
+        then N (leftValNum + rightValNum)
+        else if leftVal `isInstanceOf` "STRING" && rightVal `isInstanceOf` "STRING"
+            then S (leftValString ++ rightValString)
+            else loxError "visitBinary" "Operands must be two numbers or two strings" op
+    where
+        leftVal = evaluate left
         rightVal = evaluate right
--}
+        leftValNum = getNumberOperand leftVal "visitBinary" op
+        rightValNum = getNumberOperand rightVal "visitBinary" op
+        leftValString = getStringOperand leftVal
+        rightValString = getStringOperand rightVal
+
+---- Helper functions ----
+isInstanceOf :: Value -> String -> Bool
+isInstanceOf (N _) s = s == "NUM"
+isInstanceOf (S _) s = s == "STRING"
+isInstanceOf (B _) s = s == "BOOL"
+isInstanceOf Null s = s == "NULL"
+
+-- I javakoden heter denna checkNumberOperand men de gör samma sak typ, forutom 
+-- min returnerar också. 
+getNumberOperand :: Value -> String -> Token -> Float
+getNumberOperand (N n) _ _ = n
+getNumberOperand _ funcName tok = loxError funcName "Operand must be a number" tok
+
+getStringOperand :: Value -> String 
+getStringOperand (S s) = s
+
+--Om ett fel uppstår är det ok att ditt program kastar ett exception och avslutar.
+-- bör kanske kasta ett exception här? Gör om i så fall! 
+loxError :: [Char] -> [Char] -> Token -> error
+loxError funcName string tok = error ("Error in function "++ funcName ++". "++ string ++
+   " on line "++ show (getTokenLine tok))
+
+getTokenLine :: Token -> Int
+getTokenLine (TOKEN _ _ _ l) = l
