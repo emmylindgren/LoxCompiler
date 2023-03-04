@@ -1,27 +1,36 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use fromMaybe" #-}
 module Interpreter (interpret) where
 import ParserTree
 import Data.Maybe (isNothing, fromJust)
 import Tokens
 
-data Enviroment = ENVIROMENT{variables::[(String,String)], enclosing::Maybe Enviroment}
-data Value = N Float | S String | B Bool | Null
+import qualified Data.Map.Strict as Map
+
+data Enviroment = ENVIROMENT{variables::[(String,Value)], enclosing::Maybe Enviroment}
+data Value = N Float | S String | B Bool | Nil
     deriving Eq
 instance Show Value where
     show (N f) = show f
     show (S s) = show s
     show (B b) = show b
-    show Null = "Null"
+    show Nil = "Nil"
 
 interpret :: Program -> [String]
-interpret (PROGRAM decs) = getOutPut decs
+interpret (PROGRAM decs) = [show decs] -- ta bort denna, bara för att det inte ska va fel i filen.
+--interpret (PROGRAM decs) = getOutPut decs
 
+-- okej huuur? Enviroment ska med, och lista med strängar. 
+-- SKA MED ÖVERALLT! FIXA DETTA FÖRST! 
+{-
 getOutPut :: [Declaration] -> [String]
 getOutPut = foldr execute []
-
-execute :: Declaration -> [String] -> [String]
-execute (Statement s) list = case s of
-    ExpressionStmt e -> visitExpressionStmt e list
-    PrintStmt e -> visitPrintStmt e list
+-}
+execute :: Declaration -> [String] -> Enviroment -> ([String],Enviroment)
+execute (Statement s) list env = case s of
+    ExpressionStmt e -> (visitExpressionStmt e list,env)
+    PrintStmt e -> (visitPrintStmt e list,env)
+execute dec@VarDec{} list env = visitVarDec dec list env
 
 visitExpressionStmt :: Expression -> [String] -> [String]
 visitExpressionStmt e list = list
@@ -30,13 +39,37 @@ visitExpressionStmt e list = list
 
 visitPrintStmt :: Expression -> [String] -> [String]
 visitPrintStmt e outlist = show (evaluate e): outlist
---evaluate ska utvärdera ett expression verkar de som.
--- återigen, returntyp? Kan inte vara olika.  
--- Det är ju typ sträng men det känns verkligen inte säkert. 
--- i javakoden enligt: 
---   private Object evaluate(Expr expr) {
- --   return expr.accept(this);
---  } och accept va ju som en switchsats vilekn de är. 
+
+visitVarDec :: Declaration -> [String] -> Enviroment -> ([String],Enviroment)
+visitVarDec (VarDec name init) list env = (list,updatedEnviroment)
+    where
+        updatedEnviroment = if isNothing init
+            then defineVariable env (idName, Nil)
+            else defineVariable env (idName, evaluate(fromJust init))
+        idName = getIdentifierName name
+
+--Problems här. visste att jag skulle springa på problem. Känns som man måste skicka med enviroment 
+-- och även strängen överallt för man vet aldrig när den kan behövas? 
+visitVariableExpr :: Expression -> Enviroment -> Value 
+visitVariableExpr (Variable name) env = getVariable env (getIdentifierName name)
+
+defineVariable :: Enviroment -> (String,Value) -> Enviroment
+defineVariable (ENVIROMENT var enc) adding = ENVIROMENT{variables = adding:var,enclosing=enc}
+
+getVariable :: Enviroment -> String -> Value
+getVariable (ENVIROMENT var enc) name = if isNothing maybeValue
+    then if isNothing enc
+        then error ("getvariable undefined variable " ++ name)
+        else getVariable (fromJust enc) name
+    else fromJust maybeValue
+    where
+        maybeValue = checkContains var name
+
+checkContains :: [(String,Value)] -> String -> Maybe Value
+checkContains xs name = Map.lookup name mappy
+    where
+        mappy = Map.fromList xs
+
 evaluate :: Expression -> Value
 evaluate expr@(Literal _) = visitLiteralExpr expr
 evaluate expr@(Grouping _) = visitGroupingExpr expr
@@ -52,7 +85,7 @@ visitLiteralExpr (Literal l) = case l of
     ID s -> S s
     FALSE_LIT -> B False
     TRUE_LIT -> B True
-    NIL_LIT -> Null
+    NIL_LIT -> Nil
 
 visitGroupingExpr :: Expression -> Value
 visitGroupingExpr (Grouping e) = evaluate e
@@ -66,7 +99,7 @@ visitUnaryExpr (Unary op right) = case getTokenType op of
         rightValNum = getNumberOperand rightVal "visitUnaryExpr" op
         isTruthy :: Value -> Bool
         isTruthy v = case v of
-            Null -> False
+            Nil -> False
             B bool -> bool
             _ -> True
 
@@ -99,7 +132,7 @@ isInstanceOf :: Value -> String -> Bool
 isInstanceOf (N _) s = s == "NUM"
 isInstanceOf (S _) s = s == "STRING"
 isInstanceOf (B _) s = s == "BOOL"
-isInstanceOf Null s = s == "NULL"
+isInstanceOf Nil s = s == "NIL"
 
 -- I javakoden heter denna checkNumberOperand men de gör samma sak typ, forutom 
 -- min returnerar också. 
