@@ -3,7 +3,11 @@ import ParserTree
 import Tokens
 import Data.Maybe (isNothing, fromJust)
 import qualified Data.Map.Strict as Map
-
+{-|
+    Author: Emmy Lindgren
+    id19eln
+    Date: 2023-03-xx
+-}
 data Enviroment = ENVIROMENT{variables::[(String,Value)], enclosing::Maybe Enviroment}
 data Value = N Float | S String | B Bool | Nil
     deriving Eq
@@ -14,48 +18,83 @@ instance Show Value where
     show (S s) = s
     show (B b) = show b
     show Nil = "Nil"
-
+{-
+  Function for interpreting a Program to a list of 
+  output-strings. A program is a list of declarations.
+-}
 interpret :: Program -> [String]
 interpret (PROGRAM decs) = reverse outList
     where
         (outList,env) = getOutPut decs ([],ENVIROMENT{variables=[],enclosing= Nothing})
-
+{-
+  Function for intepreting a list of declarations to a list of output-strings. 
+  It takes two argument, a list of declarations to interpret, and a tuple
+  containing a list of output-strings and an Enviroment. The enviroment is to keep track of 
+  variables and scope in the program. 
+  If the list is empty then there are no declarations to interpret. Otherwise the first 
+  declaration is interpreted and the resulting output-string list and enviroment is 
+  used for interpreting the rest of the list. 
+-}
 getOutPut :: [Declaration] -> ([String],Enviroment) -> ([String],Enviroment)
 getOutPut [] listAndEnv = listAndEnv
 getOutPut (x:xs) listAndEnv = getOutPut xs (newList,newEnv)
     where
         (newList,newEnv) = execute x listAndEnv
-
-
+{-
+  Function for interpreting a declaration. 
+  A declaration is either a statement or a variable declaration.
+  The output-string list and enviroment is updated through the matching 
+  function depending on what kind of declaration it is. 
+-}
 execute :: Declaration -> ([String],Enviroment) -> ([String],Enviroment)
 execute (Statement s) listAndEnv = case s of
     ExpressionStmt e -> visitExpressionStmt e listAndEnv
     IfStmt {} -> visitIfStmt s listAndEnv
     PrintStmt e -> visitPrintStmt e listAndEnv
-    BlockStmt{} -> visitBlockStmt s listAndEnv
     WhileStmt{} -> visitWhileStmt s listAndEnv
+    BlockStmt{} -> visitBlockStmt s listAndEnv
 execute dec@VarDec{} listAndEnv = visitVarDec dec listAndEnv
-
+{-
+  Function for interpreting a Expression statement. 
+  The output-string list and enviroment is updated through
+  evaluating the expression. 
+-}
 visitExpressionStmt :: Expression -> ([String],Enviroment) -> ([String],Enviroment)
 visitExpressionStmt e (list,env) = newListAndEnv
     where
         (newListAndEnv, val) = evaluate e (list,env)
-
+{-
+  Function for interpreting a If statement. 
+  The output-string list and enviroment is updated through
+  evaluating the condition expression. The resulting value is used to determine whether
+  to run the then-branch or the optional else-branch. If any of the branches are to run,
+  the output-string list and enviroment is updated through executing that branch statement.
+-}
+visitIfStmt :: Statement -> ([String],Enviroment) -> ([String],Enviroment)
+visitIfStmt IfStmt {condition, thenBranch, elseBranch} listAndEnv
+  | isTruthy conditionVal = execute (Statement thenBranch) conditionListAndEnv
+  | isNothing elseBranch = conditionListAndEnv
+  | otherwise = execute (Statement (fromJust elseBranch)) conditionListAndEnv
+  where
+      (conditionListAndEnv, conditionVal) = evaluate condition listAndEnv
+{-
+  Function for interpreting a Print statement. 
+  The output-string list and enviroment is updated through
+  evaluating the expression, and the value resulting from that
+  is added to the output-string list. 
+-}
 visitPrintStmt :: Expression -> ([String],Enviroment) -> ([String],Enviroment)
 visitPrintStmt e listAndEnv = (show val:updatedList,updatedEnv)
     where
         ((updatedList,updatedEnv),val) = evaluate e listAndEnv
-
---visitVarStmt
-visitVarDec :: Declaration -> ([String],Enviroment) -> ([String],Enviroment)
-visitVarDec (VarDec name init) (list,env)= updatedEnviromentAndList
-    where
-        updatedEnviromentAndList = if isNothing init
-            then (list,defineVariable env (idName, Nil))
-            else (listFromVal,defineVariable envFromVal (idName,val))
-        ((listFromVal,envFromVal),val) =  evaluate (fromJust init) (list,env)
-        idName = getIdentifierName name
-
+{-
+  Function for interpreting a While statement. 
+  The output-string list and enviroment is updated through evaluating the condition
+  expression. The resulting value is used to determine whether to run the body. 
+  If the body is to run, the output-string list and enviroment is updated through executing
+  the body statement, and then the condition is checked again and body is executed until
+  it is no longer true. 
+-}
 visitWhileStmt :: Statement -> ([String],Enviroment) -> ([String],Enviroment)
 visitWhileStmt WhileStmt{condition, body} = runWhile condition body
     where
@@ -66,7 +105,13 @@ visitWhileStmt WhileStmt{condition, body} = runWhile condition body
             where
                 (conditionListAndEnv,conditionVal) = evaluate cond listAndEnv'
                 bodyListAndEnv = execute (Statement bod) conditionListAndEnv
-
+{-
+  Function for interpreting a Block statement.
+  A new enviroment containing the enclosing enviroment is created for the block.
+  Then the output-string list and new enviroment is updated through executing the block
+  body (list of declarations). When the body is executed then the enviroment is set 
+  back to the original enviroment and returned with the updated output-string list.
+-}
 visitBlockStmt :: Statement -> ([String],Enviroment) -> ([String],Enviroment)
 visitBlockStmt (BlockStmt decs) (list,env) = (newList,fromJust enclosing)
     where
@@ -76,25 +121,26 @@ visitBlockStmt (BlockStmt decs) (list,env) = (newList,fromJust enclosing)
         executeBlock (x:xs) listAndEnv = executeBlock xs newlistAndEnv
             where
                 newlistAndEnv = execute x listAndEnv
-
-visitIfStmt :: Statement -> ([String],Enviroment) -> ([String],Enviroment)
-visitIfStmt IfStmt {condition, thenBranch, elseBranch} listAndEnv
-  | isTruthy conditionVal = execute (Statement thenBranch) conditionListAndEnv
-  | isNothing elseBranch = conditionListAndEnv
-  | otherwise = execute (Statement (fromJust elseBranch)) conditionListAndEnv
-  where
-      (conditionListAndEnv, conditionVal) = evaluate condition listAndEnv
-
-visitAssignmentExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
-visitAssignmentExpr Assign{varAssignname,value} listAndEnv@(list,env) = ((newList,newEnv),val)
+{-
+  Function for interpreting a Variable declaration.
+  If the variable declaration has an initializer then the output-string list and 
+  enviroment is updated through evaluating the initializer expression, and the value 
+  resulting from that is set to correspond to the variable name in the enviroment.
+  If the variable declaration lacks initializer then the value is set to lox "nil".  
+-}
+visitVarDec :: Declaration -> ([String],Enviroment) -> ([String],Enviroment)
+visitVarDec (VarDec name init) (list,env)= updatedEnviromentAndList
     where
-        newEnv = assignVariable valEnv (getIdentifierName varAssignname,val)
-        ((newList,valEnv),val) = evaluate value listAndEnv
-
-visitVariableExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
-visitVariableExpr (Variable name) listAndEnv@(list,env) = (listAndEnv,getVariable env (getIdentifierName name))
-
-
+        updatedEnviromentAndList = if isNothing init
+            then (list,defineVariable env (idName, Nil))
+            else (listFromVal,defineVariable envFromVal (idName,val))
+        ((listFromVal,envFromVal),val) =  evaluate (fromJust init) (list,env)
+        idName = getIdentifierName name
+{-
+  Function for interpreting a Expression.
+  Depending on the type of the expression the output-string list and 
+  enviroment is updated through calling the matching function.
+-}
 evaluate :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
 evaluate expr@(Literal _) listAndEnv = (listAndEnv,visitLiteralExpr expr)
 evaluate expr@(Logical {}) listAndEnv = visitLogicalExpr expr listAndEnv
@@ -103,7 +149,11 @@ evaluate expr@(Variable _) listAndEnv = visitVariableExpr expr listAndEnv
 evaluate expr@(Assign{}) listAndEnv = visitAssignmentExpr expr listAndEnv
 evaluate expr@(Binary {}) listAndEnv = visitBinaryExpr expr listAndEnv
 evaluate expr@(Grouping _) listAndEnv = visitGroupingExpr expr listAndEnv
-
+{-
+  Function for interpreting a Literal Expression.
+  The function takes an Expression of type literal and returns the 
+  corresponding value of that Expression, wrapped in the datatype Value. 
+-}
 visitLiteralExpr :: Expression -> Value
 visitLiteralExpr (Literal l) = case l of
     NUM n -> N n
@@ -112,7 +162,13 @@ visitLiteralExpr (Literal l) = case l of
     FALSE_LIT -> B False
     TRUE_LIT -> B True
     NIL_LIT -> Nil
-
+{-
+  Function for interpreting a Logical Expression.
+  If the operator is 'or' then the left value is used if it's truthy,
+  otherwise the right value is used.
+  If it's not the 'or' operator then it must be the 'and' operator,
+  in which case left value is used if it's not truthy, otherwise the right is used.
+-}
 visitLogicalExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
 visitLogicalExpr Logical {left,operator,right} listAndEnv
   | getTokenType operator == OR = if isTruthy leftVal then leftExpr else rightExpr
@@ -122,10 +178,13 @@ visitLogicalExpr Logical {left,operator,right} listAndEnv
       leftExpr@(leftListAndEnv, leftVal) = evaluate left listAndEnv
       rightExpr@(rightListAndEnv, rightVal)
         = evaluate right leftListAndEnv
-
-visitGroupingExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
-visitGroupingExpr (Grouping e) = evaluate e
-
+{-
+  Function for interpreting a Unary Expression.
+  Depending on type of operatior the unary has, different actions are
+  applied to the value that results from evaluating the right-expression in the unary.
+  If it's the '-' operator then the value is set to be negative, if its '!' then the
+  value is negated.
+-}
 visitUnaryExpr :: Expression -> ([String],Enviroment)-> (([String],Enviroment),Value)
 visitUnaryExpr (Unary op right) listAndEnv = case getTokenType op of
     MINUS -> (newlistAndEnv,N (-rightValNum))
@@ -133,7 +192,28 @@ visitUnaryExpr (Unary op right) listAndEnv = case getTokenType op of
     where
         (newlistAndEnv,rightVal) = evaluate right listAndEnv
         rightValNum = getNumberOperand rightVal "visitUnaryExpr" op
-
+{-
+  Function for interpreting a Variable Expression.
+  The value corresponding to the variable name is fetched from the enviroment.
+-}
+visitVariableExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
+visitVariableExpr (Variable name) listAndEnv@(list,env) = (listAndEnv,getVariable env (getIdentifierName name))
+{-
+  Function for interpreting a Assignment Expression.
+  The value corresponding to the variable name is updated in the enviroment.
+-}
+visitAssignmentExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
+visitAssignmentExpr Assign{varAssignname,value} listAndEnv@(list,env) = ((newList,newEnv),val)
+    where
+        newEnv = assignVariable valEnv (getIdentifierName varAssignname,val)
+        ((newList,valEnv),val) = evaluate value listAndEnv
+{-
+  Function for interpreting a Binary Expression.
+  Depending on the type of the operator in the binary, different operations 
+  are performed on the resulting values from evaluating the left and right expressions
+  in the binary. Typechecking is also performed to make sure operators are 
+  used on the appropriate types.
+-}
 visitBinaryExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
 visitBinaryExpr (Binary left op right) listAndEnv = case getTokenType op of
     GREATER -> emit $ B (leftValNum > rightValNum)
@@ -159,13 +239,32 @@ visitBinaryExpr (Binary left op right) listAndEnv = case getTokenType op of
         rightValString = getStringOperand rightVal
         emit :: Value -> (([String],Enviroment),Value)
         emit val = (rightListAndEnv,val)
+{-
+  Function for interpreting a Grouping Expression.
+  The expression in the grouping is evaluated.
+-}
+visitGroupingExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
+visitGroupingExpr (Grouping e) = evaluate e
 
 ---- Functions for the Enviroment ----
+{-
+  Function for defining a variable in the enviroment.
+  Takes an enviroment (of which the variable is to be added to) and 
+  a key value pair with the variable-name and value.
+  If the variable (key) is already present then it is overwritten with 
+  the new value.
+-}
 defineVariable :: Enviroment -> (String,Value) -> Enviroment
 defineVariable (ENVIROMENT var enc) (name,val) = ENVIROMENT{variables = newVariables,enclosing=enc}
     where
         newVariables = Map.toList (Map.insert name val (Map.fromList var))
-
+{-
+  Function for assigning a variable in the enviroment.
+  Takes an enviroment (which contains the variable to be assigned) and 
+  a key value pair with the variable-name and the new value.
+  If the variable (key) is not present in the enviroment then the enclosing enviroment
+  is checked. If there is no enclosing enviroment an error is thrown. 
+-}
 assignVariable :: Enviroment -> (String,Value) -> Enviroment
 assignVariable (ENVIROMENT var enc) (name,val) = if isNothing (Map.lookup name variableMap)
     then if isNothing enc
@@ -177,7 +276,13 @@ assignVariable (ENVIROMENT var enc) (name,val) = if isNothing (Map.lookup name v
         variableMap = Map.fromList var
         newEnv = Map.toList (Map.insert name val variableMap)
 
---felet som kastas här ska väl kastas som alla andra ! FIXA 
+{-
+  Function for fetching a variable from the enviroment.
+  Takes an enviroment (which contains the variable) and a string representing 
+  the wanted variable name (key). If the variable (key) is not present in the 
+  enviroment then the enclosing enviromentis checked. If there is no enclosing enviroment
+   an error is thrown. 
+-}
 getVariable :: Enviroment -> String -> Value
 getVariable (ENVIROMENT var enc) name = if isNothing maybeValue
     then if isNothing enc
@@ -189,28 +294,43 @@ getVariable (ENVIROMENT var enc) name = if isNothing maybeValue
 ---- Functions for the Enviroment ----
 
 ---- Helper functions ----
+{-
+  Function for checking if a Value is of a certain Value type.
+  Takes a Value and a string representing the certain Value type.
+-}
 isInstanceOf :: Value -> String -> Bool
 isInstanceOf (N _) s = s == "NUM"
 isInstanceOf (S _) s = s == "STRING"
 isInstanceOf (B _) s = s == "BOOL"
 isInstanceOf Nil s = s == "NIL"
-
+{-
+  Function for checking the truthiness of a Value.
+  All types of Values are True except Nil and False. 
+-}
 isTruthy :: Value -> Bool
 isTruthy v = case v of
             Nil -> False
             B bool -> bool
             _ -> True
--- I javakoden heter denna checkNumberOperand men de gör samma sak typ, forutom 
--- min returnerar också. 
+{-
+  Function for fetching the number out of a Value.
+  Takes a value, then a string representing the callee function name and 
+  a token needed if an error is to be thrown. Error is thrown when Value is 
+  not of type N (Number). 
+-}
 getNumberOperand :: Value -> String -> Token -> Float
 getNumberOperand (N n) _ _ = n
 getNumberOperand _ funcName tok = loxError funcName "Operand must be a number" tok
-
+{-
+  Function for fetching the string out of a Value.
+-}
 getStringOperand :: Value -> String
 getStringOperand (S s) = s
-
---Om ett fel uppstår är det ok att ditt program kastar ett exception och avslutar.
--- bör kanske kasta ett exception här? Gör om i så fall! 
+{-
+  Function to throw an error in interpreting state, 
+  It takes two arguments, one of type [Char] (the string containing error info)
+  and one of type 'Token', the token of which threw an error. 
+-}
 loxError :: [Char] -> [Char] -> Token -> error
 loxError funcName string tok = error ("Error in function "++ funcName ++". "++ string ++
    " on line "++ show (getTokenLine tok))
