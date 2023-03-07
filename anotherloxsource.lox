@@ -4,6 +4,7 @@ print 2 + 1;
 print 0.50;
 var a = 1;
 var b = 2;
+//if(hejda < 0) print "hej"; // ska bli fel. 
 print a + b;
 var hejTilldelning = 1;
 print hejTilldelning = 2; // ska printa 2

@@ -132,10 +132,9 @@ visitVarDec :: Declaration -> ([String],Enviroment) -> ([String],Enviroment)
 visitVarDec (VarDec name init) (list,env)= updatedEnviromentAndList
     where
         updatedEnviromentAndList = if isNothing init
-            then (list,defineVariable env (idName, Nil))
-            else (listFromVal,defineVariable envFromVal (idName,val))
+            then (list,defineVariable env (name, Nil))
+            else (listFromVal,defineVariable envFromVal (name,val))
         ((listFromVal,envFromVal),val) =  evaluate (fromJust init) (list,env)
-        idName = getIdentifierName name
 {-
   Function for interpreting a Expression.
   Depending on the type of the expression the output-string list and 
@@ -197,7 +196,7 @@ visitUnaryExpr (Unary op right) listAndEnv = case getTokenType op of
   The value corresponding to the variable name is fetched from the enviroment.
 -}
 visitVariableExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
-visitVariableExpr (Variable name) listAndEnv@(list,env) = (listAndEnv,getVariable env (getIdentifierName name))
+visitVariableExpr (Variable name) listAndEnv@(list,env) = (listAndEnv,getVariable env name)
 {-
   Function for interpreting a Assignment Expression.
   The value corresponding to the variable name is updated in the enviroment.
@@ -205,7 +204,7 @@ visitVariableExpr (Variable name) listAndEnv@(list,env) = (listAndEnv,getVariabl
 visitAssignmentExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
 visitAssignmentExpr Assign{varAssignname,value} listAndEnv@(list,env) = ((newList,newEnv),val)
     where
-        newEnv = assignVariable valEnv (getIdentifierName varAssignname,val)
+        newEnv = assignVariable valEnv (varAssignname,val)
         ((newList,valEnv),val) = evaluate value listAndEnv
 {-
   Function for interpreting a Binary Expression.
@@ -254,10 +253,10 @@ visitGroupingExpr (Grouping e) = evaluate e
   If the variable (key) is already present then it is overwritten with 
   the new value.
 -}
-defineVariable :: Enviroment -> (String,Value) -> Enviroment
-defineVariable (ENVIROMENT var enc) (name,val) = ENVIROMENT{variables = newVariables,enclosing=enc}
+defineVariable :: Enviroment -> (Token,Value) -> Enviroment
+defineVariable (ENVIROMENT var enc) (nameTok,val) = ENVIROMENT{variables = newVariables,enclosing=enc}
     where
-        newVariables = Map.toList (Map.insert name val (Map.fromList var))
+        newVariables = Map.toList (Map.insert (getIdentifierName nameTok) val (Map.fromList var))
 {-
   Function for assigning a variable in the enviroment.
   Takes an enviroment (which contains the variable to be assigned) and 
@@ -265,32 +264,33 @@ defineVariable (ENVIROMENT var enc) (name,val) = ENVIROMENT{variables = newVaria
   If the variable (key) is not present in the enviroment then the enclosing enviroment
   is checked. If there is no enclosing enviroment an error is thrown. 
 -}
-assignVariable :: Enviroment -> (String,Value) -> Enviroment
-assignVariable (ENVIROMENT var enc) (name,val) = if isNothing (Map.lookup name variableMap)
+assignVariable :: Enviroment -> (Token,Value) -> Enviroment
+assignVariable (ENVIROMENT var enc) (nameTok,val) = if isNothing (Map.lookup idName variableMap)
     then if isNothing enc
-        then error ("Undefined variable "++ name)
+        then loxError "assignVariable" ("Trying to assign undefined variable "++idName) nameTok
         else ENVIROMENT{variables = var, enclosing = Just updatedEnclosing}
     else ENVIROMENT{variables= newEnv, enclosing = enc}
     where
-        updatedEnclosing = assignVariable (fromJust enc) (name,val)
+        updatedEnclosing = assignVariable (fromJust enc) (nameTok,val)
         variableMap = Map.fromList var
-        newEnv = Map.toList (Map.insert name val variableMap)
-
+        newEnv = Map.toList (Map.insert idName val variableMap)
+        idName = getIdentifierName nameTok
 {-
   Function for fetching a variable from the enviroment.
   Takes an enviroment (which contains the variable) and a string representing 
   the wanted variable name (key). If the variable (key) is not present in the 
-  enviroment then the enclosing enviromentis checked. If there is no enclosing enviroment
-   an error is thrown. 
+  enviroment then the enclosing enviroment is checked. If there is no enclosing enviroment
+  an error is thrown. 
 -}
-getVariable :: Enviroment -> String -> Value
-getVariable (ENVIROMENT var enc) name = if isNothing maybeValue
+getVariable :: Enviroment -> Token -> Value
+getVariable (ENVIROMENT var enc) nameTok = if isNothing maybeValue
     then if isNothing enc
-        then error ("getvariable undefined variable " ++ name)
-        else getVariable (fromJust enc) name
+        then loxError "getVariable" ("Trying to get undefined variable "++ idName) nameTok
+        else getVariable (fromJust enc) nameTok
     else fromJust maybeValue
     where
-        maybeValue = Map.lookup name (Map.fromList var)
+        maybeValue = Map.lookup idName (Map.fromList var)
+        idName = getIdentifierName nameTok
 ---- Functions for the Enviroment ----
 
 ---- Helper functions ----
