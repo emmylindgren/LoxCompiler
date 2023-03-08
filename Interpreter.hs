@@ -148,6 +148,23 @@ evaluate expr@(Variable _) listAndEnv = visitVariableExpr expr listAndEnv
 evaluate expr@(Assign{}) listAndEnv = visitAssignmentExpr expr listAndEnv
 evaluate expr@(Binary {}) listAndEnv = visitBinaryExpr expr listAndEnv
 evaluate expr@(Grouping _) listAndEnv = visitGroupingExpr expr listAndEnv
+--evaluate expr@(Call{}) listAndEnv = visitCallExpr expr listAndEnv
+
+{-
+--Call {callee::Expression,paren::Token,arguments::[Expression]}
+visitCallExpr :: Expression -> ([String],Enviroment) -> (([String],Enviroment),Value)
+visitCallExpr Call{callee, paren, arguments} listAndEnv =
+  where 
+    (calleeListAndEnv,calleeValue) = evaluate callee listAndEnv
+    (argsListAndEnv,argsValues) = getArgsValues arguments calleeListAndEnv
+    getArgsValues :: [Expression] -> ([String],Enviroment) -> (([String],Enviroment),[Value])
+    getArgsValues [] listAndEnv = (listAndEnv,[])
+    getArgsValues (x:xs) listAndEnv = (restListAndEnv,firstArgValue:restArgValue)
+      where 
+        (firstListAndEnv,firstArgValue) = evaluate x listAndEnv
+        (restListAndEnv,restArgValue) = getArgsValues xs listAndEnv
+-}
+
 {-
   Function for interpreting a Literal Expression.
   The function takes an Expression of type literal and returns the 
