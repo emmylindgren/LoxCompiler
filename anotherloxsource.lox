@@ -1,6 +1,35 @@
-print "one";
+print nil;
 print true;
-print 2 + 1;
+print false;
+print 3;
+print 5.7;
+print "hello";
+fun fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+for (var i = 0; i < 20; i = i + 1) {
+  print fib(i);
+}
+
+print "Testing recursive counting";
+
+fun count(n) {
+  if (n > 1) count(n - 1);
+  print n;
+}
+
+count(3);
+
+fun countUP(m){
+  return m +1;
+}
+print "Should print 5";
+print countUP(4); //5
+
+// Testing return infunctions
+
 print 0.50;
 var a = 1;
 var b = 2;
