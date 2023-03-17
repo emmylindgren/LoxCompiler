@@ -7,7 +7,7 @@ import System.IO
 import System.Environment
 import System.IO.Error
 import Control.Exception
-{-
+
 -- The following code is for taking the filename in as args! Works.
 main :: IO ()
 main = interpretLoxFile `catch` errorHandler
@@ -23,12 +23,12 @@ errorHandler :: IOError -> IO ()
 errorHandler e  
     | isDoesNotExistError e = putStrLn "The file does not exist!"  
     | otherwise = ioError e
--}
 
+{-
 main =
     let filePath = "C:\\Users\\Emmy\\Documents\\Programspråk\\OU1\\anotherloxsource.lox" in
         readFile filePath >>= \s -> printProgram s
-
+-}
 
 printProgram :: String -> IO ()
 printProgram s = mapM_ putStrLn $ interpret $ parse $ scanTokens s
