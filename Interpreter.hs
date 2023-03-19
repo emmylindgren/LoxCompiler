@@ -6,7 +6,7 @@ import qualified Data.Map.Strict as Map
 {-|
     Author: Emmy Lindgren
     id19eln
-    Date: 2023-03-xx
+    Date: 2023-03-19
 -}
 data Enviroment = ENVIROMENT{variables::[(String,Value)], enclosing::Maybe Enviroment, returnVal::Maybe Value}
 data Value = N Float | S String | B Bool | Nil
@@ -125,7 +125,9 @@ visitBlockStmt (BlockStmt decs) (list,env) = (newList,fromJust enclosing)
     where
       (newList,ENVIROMENT{variables,enclosing,returnVal}) =
           executeBlock decs (list, ENVIROMENT{variables=[], enclosing = Just env, returnVal = Nothing})
-
+{-
+  Function for executing a list of declarations. 
+-}
 executeBlock :: [Declaration] -> ([String],Enviroment) -> ([String],Enviroment)
 executeBlock [] listAndEnv = listAndEnv
 executeBlock (x:xs) listAndEnv = if isNothing (returnVal newEnv)

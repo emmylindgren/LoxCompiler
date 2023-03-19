@@ -7,7 +7,6 @@ import ParserTree
     id19eln
     Date: 2023-02-24
 -}
-
 {-
   Function for parsing a list of tokens to a Program. 
   A program is a list of declarations.
